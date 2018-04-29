@@ -1,0 +1,37 @@
+// RegKeyToMOF by Mark Cochrane (with help from Skissinger, SteveRac, Jonas Hettich, Kent Agerlund & Barker)
+// this section tells the inventory agent what to collect
+// 26.03.2018 18:09:38
+
+#pragma namespace ("\\\\.\\root\\cimv2")
+#pragma deleteclass("InstalledComponents", NOFAIL)
+[dynamic, provider("RegProv"), ClassContext("Local|HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Active Setup\\Installed Components")]
+Class InstalledComponents
+{
+[key] string KeyName;
+[PropertyContext("TheDefault")] String TheDefault;
+[PropertyContext("ComponentID")] String ComponentID;
+[PropertyContext("DontAsk")] Uint32 DontAsk;
+[PropertyContext("Enabled")] Uint32 Enabled;
+[PropertyContext("IsInstalled")] Uint32 IsInstalled;
+[PropertyContext("Locale")] String Locale;
+[PropertyContext("LocalizedName")] String LocalizedName;
+[PropertyContext("StubPath")] String StubPath;
+[PropertyContext("Version")] String Version;
+};
+
+#pragma namespace ("\\\\.\\root\\cimv2")
+#pragma deleteclass("InstalledComponents_64", NOFAIL)
+[dynamic, provider("RegProv"), ClassContext("Local|HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Active Setup\\Installed Components")]
+Class InstalledComponents_64
+{
+[key] string KeyName;
+[PropertyContext("TheDefault")] String TheDefault;
+[PropertyContext("ComponentID")] String ComponentID;
+[PropertyContext("DontAsk")] Uint32 DontAsk;
+[PropertyContext("Enabled")] Uint32 Enabled;
+[PropertyContext("IsInstalled")] Uint32 IsInstalled;
+[PropertyContext("Locale")] String Locale;
+[PropertyContext("LocalizedName")] String LocalizedName;
+[PropertyContext("StubPath")] String StubPath;
+[PropertyContext("Version")] String Version;
+};

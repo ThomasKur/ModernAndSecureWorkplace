@@ -1,0 +1,41 @@
+// RegKeyToMOF by Mark Cochrane (with help from Skissinger, SteveRac, Jonas Hettich, Kent Agerlund & Barker)
+// this section tells the inventory agent what to report to the server
+// 26.03.2018 18:09:38
+
+#pragma namespace ("\\\\.\\root\\cimv2\\SMS")
+#pragma deleteclass("InstalledComponents", NOFAIL)
+[SMS_Report(TRUE),SMS_Group_Name("InstalledComponents"),SMS_Class_ID("InstalledComponents"),
+SMS_Context_1("__ProviderArchitecture=32|uint32"),
+SMS_Context_2("__RequiredArchitecture=true|boolean")]
+Class InstalledComponents: SMS_Class_Template
+{
+[SMS_Report(TRUE),key] string KeyName;
+[SMS_Report(TRUE)] String TheDefault;
+[SMS_Report(TRUE)] String ComponentID;
+[SMS_Report(TRUE)] Uint32 DontAsk;
+[SMS_Report(TRUE)] Uint32 Enabled;
+[SMS_Report(TRUE)] Uint32 IsInstalled;
+[SMS_Report(TRUE)] String Locale;
+[SMS_Report(TRUE)] String LocalizedName;
+[SMS_Report(TRUE)] String StubPath;
+[SMS_Report(TRUE)] String Version;
+};
+
+#pragma namespace ("\\\\.\\root\\cimv2\\SMS")
+#pragma deleteclass("InstalledComponents_64", NOFAIL)
+[SMS_Report(TRUE),SMS_Group_Name("InstalledComponents64"),SMS_Class_ID("InstalledComponents64"),
+SMS_Context_1("__ProviderArchitecture=64|uint32"),
+SMS_Context_2("__RequiredArchitecture=true|boolean")]
+Class InstalledComponents_64 : SMS_Class_Template
+{
+[SMS_Report(TRUE),key] string KeyName;
+[SMS_Report(TRUE)] String TheDefault;
+[SMS_Report(TRUE)] String ComponentID;
+[SMS_Report(TRUE)] Uint32 DontAsk;
+[SMS_Report(TRUE)] Uint32 Enabled;
+[SMS_Report(TRUE)] Uint32 IsInstalled;
+[SMS_Report(TRUE)] String Locale;
+[SMS_Report(TRUE)] String LocalizedName;
+[SMS_Report(TRUE)] String StubPath;
+[SMS_Report(TRUE)] String Version;
+};
