@@ -6,6 +6,7 @@ The How to Guide is in our [Syntaro Wiki](https://wiki.syntaro.com/index.php?tit
 
 # Thanks to
 WiX Toolset - http://wixtoolset.org/about/license/
+
 Microsoft LGP - for your COnvinionce it's allready included in the folder structure.
 
 
