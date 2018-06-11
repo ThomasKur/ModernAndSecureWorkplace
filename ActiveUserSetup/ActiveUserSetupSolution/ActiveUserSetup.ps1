@@ -1,4 +1,4 @@
-﻿<#
+<#
 .DESCRIPTION
     Execute Things as the User once. This is a alternative to ActiveSetup
 
@@ -10,8 +10,9 @@ Author: PAB/baseVISION
 Date:   09.03.2018
 
 History
-    001: First Version
-    002: Added Toast Notifications and improved Wait behavior
+    1.0.0: First Version
+    1.0.1: Added Toast Notifications and improved Wait behavior
+    1.0.2: Changes in the duration that the Toast Message is shown
 
 
 #>
@@ -19,7 +20,7 @@ History
 
 ## Manual Variable Definition
 ########################################################
-$ScriptVersion = "002"
+$ScriptVersion = "1.0.2"
 
 $DefaultLogOutputMode  = "LogFile"
 $DebugPreference = "Continue"
@@ -101,7 +102,7 @@ Function Show-ToastMessage{
         $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
         $xml.LoadXml(
             "<?xml version=""1.0""?>
-            <toast>
+            <toast duration=""long"">
                 <visual>
                     <binding template=""ToastGeneric"">
                         <text>$Titel</text>
@@ -547,7 +548,7 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
                             start-sleep -seconds 1
                             $SecondsCounter = $SecondsCounter +1
                             $TotalSeconds = $TotalSeconds +1
-                            If($SecondsCounter -eq 5){
+                            If($SecondsCounter -eq 10){
                                 $SecondsCounter = 0
                                 Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
                             }
@@ -556,7 +557,6 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
 
                         $ProcessExitCode = $Process.ExitCode
 
-                        Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Finished with Exitcode $ProcessExitCode"
 
                         Write-Log "Executed the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument'. It ended with the Exit Code $ProcessExitCode"
                     }
@@ -570,7 +570,7 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
                             start-sleep -seconds 1
                             $SecondsCounter = $SecondsCounter +1
                             $TotalSeconds = $TotalSeconds +1
-                            If($SecondsCounter -eq 5){
+                            If($SecondsCounter -eq 10){
                                 $SecondsCounter = 0
                                 Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
                             }
@@ -579,7 +579,6 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
 
                         $ProcessExitCode = $Process.ExitCode
 
-                        Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Finished with Exitcode $ProcessExitCode"
 
                         Write-Log "Executed the Command $CurrentTaskCommandToExecute. It ended with the Exit Code $ProcessExitCode"
                     }
@@ -615,14 +614,21 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
             If($ProcessWasSuccessful){
                 Write-Log "The Exitcode was $ProcessExitCode, this is in the List of Succesful Exit Codes $CurrentTaskSuccessfulReturnCodes"
                 $WriteToUserRegistry = $true
+                Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Finished with Exitcode $ProcessExitCode. It was successful."
+
             }
             else{
                 Write-Log "The Exitcode was $ProcessExitCode, this is not in the List of Succesful Exit Codes $CurrentTaskSuccessfulReturnCodes"  -Type Error
+                Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Finished with Exitcode $ProcessExitCode. Something went wrong."
+                Start-Sleep -Seconds 5 #This is that the Toast is at least 5 seconds visible, when something returned an unexpected Exit Code. 
             }
         }
         else{
             $WriteToUserRegistry = $true
+            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Finished with Exitcode $ProcessExitCode"
+
         }
+        
 #endregion
 
 #region Write to User Registry
@@ -655,8 +661,8 @@ End-Script
 # SIG # Begin signature block
 # MIIXxQYJKoZIhvcNAQcCoIIXtjCCF7ICAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUw0s5uj2VYEL9woiVTdeBiaQF
-# 42OgghL4MIID7jCCA1egAwIBAgIQfpPr+3zGTlnqS5p31Ab8OzANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU829Ppxo+JfCRG9JXRx9ePHdW
+# FwugghL4MIID7jCCA1egAwIBAgIQfpPr+3zGTlnqS5p31Ab8OzANBgkqhkiG9w0B
 # AQUFADCBizELMAkGA1UEBhMCWkExFTATBgNVBAgTDFdlc3Rlcm4gQ2FwZTEUMBIG
 # A1UEBxMLRHVyYmFudmlsbGUxDzANBgNVBAoTBlRoYXd0ZTEdMBsGA1UECxMUVGhh
 # d3RlIENlcnRpZmljYXRpb24xHzAdBgNVBAMTFlRoYXd0ZSBUaW1lc3RhbXBpbmcg
@@ -762,22 +768,22 @@ End-Script
 # LwYDVQQDEyhEaWdpQ2VydCBTSEEyIEFzc3VyZWQgSUQgQ29kZSBTaWduaW5nIENB
 # AhAJT00SLqoJkIvAj67NF8OqMAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQow
 # CKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcC
-# AQsxDjAMBgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBQYHcjLaokkugkvaDnd
-# Va0kL27fDzANBgkqhkiG9w0BAQEFAASCAQCIEK5X38bYfwuIyXBHEjCfZy9GM/2O
-# x8R2mTbMr/xuGMFwW5gE0qk9GSTUKNVAyFYX0RiPVzablD2SdG0tEI/K+mg845t4
-# MDFWlLk/w17iNgmWLFLkvzMoexzd6eHrOrhiTq52gUeVmo9p9/g9ix6Ful+7uMMF
-# hlDPygBjIMcbmqVmZ7EMUtiZnw3l2z1ONfunzYQ6Xaq3LrBO5L9Q/8VzkI7q/3sN
-# jWejU48QFxKZTnFqOklJYCrDUZjwbsdG0zzMtPlfdxcTRmvLhkJwh27qvcfLtda4
-# P/dFWsxjn7Dd0KWOpZb/k9B8B2P3fhSpZBJozU8Luf6jiLsq1s/Vt3YpoYICCzCC
+# AQsxDjAMBgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBTm16teRhHI0uPiStZK
+# XawjYKn7ODANBgkqhkiG9w0BAQEFAASCAQBdiQAtN2YsWgTiZ7guxL1Ms/k/VLog
+# E7YNXNiTtWpJqp3eZn/lS0WlOzdW6VsXWRWitbUlq1Ax4j4qM5h7/UI/OGhkzUnE
+# 9XU5dSoFlRxWS1xvxOKXXCnpXQgmGkaXPjoeMLzMc20S685zIq8jNViSQHjMJDtw
+# siIr0AfEgBfc4cdoq0M+cinoO7IiGcTBxlOKeWDDQKXdc5+eyDEBze/Uyopfc1Wz
+# 4M4kbXC0H36iarNNE17K1m8DZaFqRLPsu9ksepPaa58duR+WvqsTW1rTdEZf8zF1
+# Phssfan9S5IFrE18UyxLQMykC3XB7wMfos8oTVJNCD8Ri02P0OWQjhX2oYICCzCC
 # AgcGCSqGSIb3DQEJBjGCAfgwggH0AgEBMHIwXjELMAkGA1UEBhMCVVMxHTAbBgNV
 # BAoTFFN5bWFudGVjIENvcnBvcmF0aW9uMTAwLgYDVQQDEydTeW1hbnRlYyBUaW1l
 # IFN0YW1waW5nIFNlcnZpY2VzIENBIC0gRzICEA7P9DjI/r81bgTYapgbGlAwCQYF
 # Kw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkF
-# MQ8XDTE4MDQyNTE5NTAyMFowIwYJKoZIhvcNAQkEMRYEFAsRql5wvzPdRebxeQpV
-# c3kA1pgHMA0GCSqGSIb3DQEBAQUABIIBACrtEEFFnQn8K92toTQH8fOb/bQA6EVQ
-# +yHAoE1bl3wLXDwuHzJ8IIexjapBwP6+DaaOe2f9kyQtsDDtcEbcdnyhEby4U96E
-# pNdG2uPlCKo8RXoaaH3ucrwLAF7kXbHnsLsOUHtnG5Vr9SUfnAJKNB1Ah4/DRBTS
-# MhWB4vSEp+amMvhcg1Nh5pWHsyhMorkP0puxcbHPSjFcyOwReINGj9el7UeBM007
-# lc9S5sUP6fy4H9kSvsbvE3d/7W5oBNG+wR6Gshif8AQvBOnvIp4YvCWC/qU91uLD
-# h1avjB2sxdSObSJhiwAu8zzY6c1nUZdZoh2MJ6Q/RgdSKR+pAnDNfaA=
+# MQ8XDTE4MDUyMzE0MTMyNFowIwYJKoZIhvcNAQkEMRYEFD/F/stXzBso4dE1d2QT
+# rMTa+EG3MA0GCSqGSIb3DQEBAQUABIIBADIGeYJU+XKwE/IvTQcolmU16UYrRraZ
+# 7iyzfk3NBoWl0fB+UD4j0IZvK0M9AEjSjqnXd6b+6Q1thr0wSxyXqY309vEqRWdx
+# URUg5gBHjH9nXlMk8l6Yl1pWDoDFHJ+ifVkR3zSs6FjICVNO1WhdQmRVOLqWsX7Z
+# GFQh6vWb34vlU4VbA+7d/P/jNCFNUyZESpK8pYVRvKAZIzcv8msxTPFxJNhFCN48
+# 6xNvzyvf4eMv4a/9tFhu8tavUJ8IfMCIoZI4TbEI8wUDzSmizMMWQXgNGetVPoI7
+# pKKnCh0vCO5tdf/BNBod7fVOe2jXrGyJe3c0mj9BcxBgnMJQs2zkXYc=
 # SIG # End signature block
