@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product Name='GroupPolicyOverMDM' Manufacturer='baseVISION AG' Id='*' UpgradeCode='12ad2678-1a36-b4d3-60c6-3176a85e1131' Language='1033' Codepage='1252' Version='CUSTOMMSIVERSION'>
+		<Package Id='*' Keywords='Installer' Manufacturer='baseVISION AG' Description="Allows to deploy a GroupPolicy over MDM/Intune." InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+
+		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+		<MediaTemplate EmbedCab="yes"/>
+		<Condition Message="You need to be an administrator to install this Group Policy.">
+			Privileged
+		</Condition>
+		<FeatureRef Id="MainApplication"/>
+		<UIRef Id="WixUI_Minimal" />
+		<WixVariable Id="WixUILicenseRtf" Value="eula.rtf" />
+	</Product>	
+	<Fragment>
+		<Directory Id='TARGETDIR' Name='SourceDir'>
+			<Directory Id="ProgramFilesFolder">
+				<Directory Id="ManufacturerFolder" Name="baseVISION">
+					<Directory Id="ProductFolder" Name="GPOtoMSI" />
+				</Directory>
+			</Directory>
+		</Directory>
+	</Fragment>	
+	
+	<Fragment>
+		<Binary Id='LGPO' SourceFile='lgpo\lgpo.exe'/>
+		<CustomAction Id='GPOLoader' Impersonate='yes' BinaryKey='LGPO' ExeCommand='/g "[ProductFolder]GPOBackup"' Execute='deferred' Return='check' HideTarget='no'>1</CustomAction>
+
+		<InstallExecuteSequence>
+			<Custom Action='GPOLoader' Before='InstallFinalize'>NOT REMOVE="ALL"</Custom>
+		</InstallExecuteSequence>
+		<ComponentGroup Id="Fake" />
+	</Fragment>
+	<Fragment>
+		<Feature Id="MainApplication" Title="Main Application" Level="1">
+			<ComponentGroupRef Id="GPOFiles" />
+			<ComponentGroupRef Id="Fake" />
+		</Feature>
+	</Fragment>
+</Wix>
