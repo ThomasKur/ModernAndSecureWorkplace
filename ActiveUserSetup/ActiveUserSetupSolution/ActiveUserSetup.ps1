@@ -13,6 +13,7 @@ History
     1.0.0: First Version
     1.0.1: Added Toast Notifications and improved Wait behavior
     1.0.2: Changes in the duration that the Toast Message is shown
+    1.0.3: Put task enumeration into a function
 
 
 #>
@@ -20,7 +21,7 @@ History
 
 ## Manual Variable Definition
 ########################################################
-$ScriptVersion = "1.0.2"
+$ScriptVersion = "1.0.3"
 
 $DefaultLogOutputMode  = "LogFile"
 $DebugPreference = "Continue"
@@ -317,7 +318,7 @@ function Set-ExitMessageRegistry () {
     [string]$ExitMessage
     )
 
-    $DateTime = Get-Date â€“f o
+    $DateTime = Get-Date –f o
     #The registry Key into which the information gets written must be checked and if not existing created
     if((Test-Path "HKLM:\SOFTWARE\_Custom") -eq $False)
     {
@@ -394,10 +395,48 @@ function Check-LogFileSize {
         }
 
 	} else {
-		Write-Log "The Log $Log doesn't exists"
+	    Write-Log "The Log $Log doesn't exists"
 	}
 }
+function Get-ActiveUserSetupTask {
+    <#
+    .DESCRIPTION
+    Enumerate the ActiveUserSetup tasks from the registry.
 
+    .PARAMETER RootKey
+    The root key which has to be searched for tasks.
+
+    .EXAMPLE
+    Get-ActiveUserSetupTask -RootKey $HKLMRootKey
+    #>
+
+    Param (
+        [Parameter(Mandatory = $true)]
+        [string]$RootKey
+    )
+
+    Try{
+        If(Test-Path $RootKey){
+            Write-Log "Found the Key $RootKey"
+            $RootChilds =Get-ChildItem -Name -Path $RootKey
+            If($RootChilds.count -gt 0){
+                Write-Log ("$RootKey has " +$RootChilds.count + " Childs")
+            }
+            else{
+                Write-Log "$RootKey has no Childs. So there is nothing to do."  -Type Warn
+            }
+        }
+        else{
+            Write-Log "The Key $RootKey doesn't exist"  -Type Warn
+            $RootChilds = @()
+        }
+    }
+    catch{
+        Write-Log "Error reading from $RootKey"  -Type Error -Exception $_.Exception
+        Throw "Error reading from $RootKey"
+    }
+    return $RootChilds
+}
 #endregion
 
 
@@ -419,30 +458,18 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
     
 
 #region  Get Tasks from HKLM Key
-    Try{
-        If(Test-Path $HKLMRootKey){
-            Write-Log "Found the Key $HKLMRootKey"
-            $HKLMRootChilds =Get-ChildItem -Name -Path $HKLMRootKey
-            If($HKLMRootChilds.count -gt 0){
-                Write-Log ("$HKLMRootKey has " +$HKLMRootChilds.count + " Childs")
-            }
-            else{
-                Write-Log "$HKLMRootKey has no Childs. So there is nothing to do."  -Type Warn
-                End-Script
-                Break
-            }
-        }
-        else{
-            Write-Log "The Key $HKLMRootKey doesn't exist"  -Type Warn
-            End-Script
-            Break
-        }
-    }
-    catch{
-        Write-Log "Error reading from $HKLMRootKey"  -Type Error -Exception $_.Exception
-        End-Script
-        Break
-    }
+try {
+    $HKLMRootChilds = Get-ActiveUserSetupTask -RootKey $HKLMRootKey
+}
+catch {
+    End-Script; Break
+}
+
+if ($HKLMRootChilds.count -eq 0) {
+    Write-Log "There is nothing to do end script now." -Type Warn
+    End-Script
+    Break
+}
 #endregion
 
     ForEach($HKLMRootChild in $HKLMRootChilds){
@@ -658,132 +685,4 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
 End-Script
 
 #endregion
-# SIG # Begin signature block
-# MIIXxQYJKoZIhvcNAQcCoIIXtjCCF7ICAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
-# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU829Ppxo+JfCRG9JXRx9ePHdW
-# FwugghL4MIID7jCCA1egAwIBAgIQfpPr+3zGTlnqS5p31Ab8OzANBgkqhkiG9w0B
-# AQUFADCBizELMAkGA1UEBhMCWkExFTATBgNVBAgTDFdlc3Rlcm4gQ2FwZTEUMBIG
-# A1UEBxMLRHVyYmFudmlsbGUxDzANBgNVBAoTBlRoYXd0ZTEdMBsGA1UECxMUVGhh
-# d3RlIENlcnRpZmljYXRpb24xHzAdBgNVBAMTFlRoYXd0ZSBUaW1lc3RhbXBpbmcg
-# Q0EwHhcNMTIxMjIxMDAwMDAwWhcNMjAxMjMwMjM1OTU5WjBeMQswCQYDVQQGEwJV
-# UzEdMBsGA1UEChMUU3ltYW50ZWMgQ29ycG9yYXRpb24xMDAuBgNVBAMTJ1N5bWFu
-# dGVjIFRpbWUgU3RhbXBpbmcgU2VydmljZXMgQ0EgLSBHMjCCASIwDQYJKoZIhvcN
-# AQEBBQADggEPADCCAQoCggEBALGss0lUS5ccEgrYJXmRIlcqb9y4JsRDc2vCvy5Q
-# WvsUwnaOQwElQ7Sh4kX06Ld7w3TMIte0lAAC903tv7S3RCRrzV9FO9FEzkMScxeC
-# i2m0K8uZHqxyGyZNcR+xMd37UWECU6aq9UksBXhFpS+JzueZ5/6M4lc/PcaS3Er4
-# ezPkeQr78HWIQZz/xQNRmarXbJ+TaYdlKYOFwmAUxMjJOxTawIHwHw103pIiq8r3
-# +3R8J+b3Sht/p8OeLa6K6qbmqicWfWH3mHERvOJQoUvlXfrlDqcsn6plINPYlujI
-# fKVOSET/GeJEB5IL12iEgF1qeGRFzWBGflTBE3zFefHJwXECAwEAAaOB+jCB9zAd
-# BgNVHQ4EFgQUX5r1blzMzHSa1N197z/b7EyALt0wMgYIKwYBBQUHAQEEJjAkMCIG
-# CCsGAQUFBzABhhZodHRwOi8vb2NzcC50aGF3dGUuY29tMBIGA1UdEwEB/wQIMAYB
-# Af8CAQAwPwYDVR0fBDgwNjA0oDKgMIYuaHR0cDovL2NybC50aGF3dGUuY29tL1Ro
-# YXd0ZVRpbWVzdGFtcGluZ0NBLmNybDATBgNVHSUEDDAKBggrBgEFBQcDCDAOBgNV
-# HQ8BAf8EBAMCAQYwKAYDVR0RBCEwH6QdMBsxGTAXBgNVBAMTEFRpbWVTdGFtcC0y
-# MDQ4LTEwDQYJKoZIhvcNAQEFBQADgYEAAwmbj3nvf1kwqu9otfrjCR27T4IGXTdf
-# plKfFo3qHJIJRG71betYfDDo+WmNI3MLEm9Hqa45EfgqsZuwGsOO61mWAK3ODE2y
-# 0DGmCFwqevzieh1XTKhlGOl5QGIllm7HxzdqgyEIjkHq3dlXPx13SYcqFgZepjhq
-# IhKjURmDfrYwggSjMIIDi6ADAgECAhAOz/Q4yP6/NW4E2GqYGxpQMA0GCSqGSIb3
-# DQEBBQUAMF4xCzAJBgNVBAYTAlVTMR0wGwYDVQQKExRTeW1hbnRlYyBDb3Jwb3Jh
-# dGlvbjEwMC4GA1UEAxMnU3ltYW50ZWMgVGltZSBTdGFtcGluZyBTZXJ2aWNlcyBD
-# QSAtIEcyMB4XDTEyMTAxODAwMDAwMFoXDTIwMTIyOTIzNTk1OVowYjELMAkGA1UE
-# BhMCVVMxHTAbBgNVBAoTFFN5bWFudGVjIENvcnBvcmF0aW9uMTQwMgYDVQQDEytT
-# eW1hbnRlYyBUaW1lIFN0YW1waW5nIFNlcnZpY2VzIFNpZ25lciAtIEc0MIIBIjAN
-# BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAomMLOUS4uyOnREm7Dv+h8GEKU5Ow
-# mNutLA9KxW7/hjxTVQ8VzgQ/K/2plpbZvmF5C1vJTIZ25eBDSyKV7sIrQ8Gf2Gi0
-# jkBP7oU4uRHFI/JkWPAVMm9OV6GuiKQC1yoezUvh3WPVF4kyW7BemVqonShQDhfu
-# ltthO0VRHc8SVguSR/yrrvZmPUescHLnkudfzRC5xINklBm9JYDh6NIipdC6Anqh
-# d5NbZcPuF3S8QYYq3AhMjJKMkS2ed0QfaNaodHfbDlsyi1aLM73ZY8hJnTrFxeoz
-# C9Lxoxv0i77Zs1eLO94Ep3oisiSuLsdwxb5OgyYI+wu9qU+ZCOEQKHKqzQIDAQAB
-# o4IBVzCCAVMwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDAO
-# BgNVHQ8BAf8EBAMCB4AwcwYIKwYBBQUHAQEEZzBlMCoGCCsGAQUFBzABhh5odHRw
-# Oi8vdHMtb2NzcC53cy5zeW1hbnRlYy5jb20wNwYIKwYBBQUHMAKGK2h0dHA6Ly90
-# cy1haWEud3Muc3ltYW50ZWMuY29tL3Rzcy1jYS1nMi5jZXIwPAYDVR0fBDUwMzAx
-# oC+gLYYraHR0cDovL3RzLWNybC53cy5zeW1hbnRlYy5jb20vdHNzLWNhLWcyLmNy
-# bDAoBgNVHREEITAfpB0wGzEZMBcGA1UEAxMQVGltZVN0YW1wLTIwNDgtMjAdBgNV
-# HQ4EFgQURsZpow5KFB7VTNpSYxc/Xja8DeYwHwYDVR0jBBgwFoAUX5r1blzMzHSa
-# 1N197z/b7EyALt0wDQYJKoZIhvcNAQEFBQADggEBAHg7tJEqAEzwj2IwN3ijhCcH
-# bxiy3iXcoNSUA6qGTiWfmkADHN3O43nLIWgG2rYytG2/9CwmYzPkSWRtDebDZw73
-# BaQ1bHyJFsbpst+y6d0gxnEPzZV03LZc3r03H0N45ni1zSgEIKOq8UvEiCmRDoDR
-# EfzdXHZuT14ORUZBbg2w6jiasTraCXEQ/Bx5tIB7rGn0/Zy2DBYr8X9bCT2bW+IW
-# yhOBbQAuOA2oKY8s4bL0WqkBrxWcLC9JG9siu8P+eJRRw4axgohd8D20UaF5Mysu
-# e7ncIAkTcetqGVvP6KUwVyyJST+5z3/Jvz4iaGNTmr1pdKzFHTx/kuDDvBzYBHUw
-# ggUnMIIED6ADAgECAhAJT00SLqoJkIvAj67NF8OqMA0GCSqGSIb3DQEBCwUAMHIx
-# CzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3
-# dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lDZXJ0IFNIQTIgQXNzdXJlZCBJ
-# RCBDb2RlIFNpZ25pbmcgQ0EwHhcNMTYwNjA2MDAwMDAwWhcNMTkwNjExMTIwMDAw
-# WjBkMQswCQYDVQQGEwJDSDESMBAGA1UECBMJU29sb3RodXJuMREwDwYDVQQHDAhE
-# w6RuaWtlbjEWMBQGA1UEChMNYmFzZVZJU0lPTiBBRzEWMBQGA1UEAxMNYmFzZVZJ
-# U0lPTiBBRzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJ+YpjWmBGJ6
-# 6p3mACb/iu1w1oUOFAPZVNSZ8nPOY2MNtzi8d2RRSf16+VVSBhy4wv5sg0QAu76I
-# 1B5mwWA73gjDERH4LRvisNLrd5cR/CyS1DLZvHY01g7Ck7MtNSekjPEHIc6LFK/4
-# 5gQ28nAPcanR2wo+RPGxu34QXKg3ceBH92POm1GDGGUMsTjP7ME7ZOeLKLScJD/V
-# rmMH/B6K7ApfAF2O/szxFXrEo+5VcloWoCRHmbFe7nLnAC8k5I63ZBmiSi6EBc89
-# ID+XaVWLYvVCNwI/PVEanmDxBG9SAxRnJtcUAYg62S84ClXNj2y53xPUbdZvz3mC
-# RTivIlhjH9ECAwEAAaOCAcUwggHBMB8GA1UdIwQYMBaAFFrEuXsqCqOl6nEDwGD5
-# LfZldQ5YMB0GA1UdDgQWBBR6hPT/LYCRb+slld/aUoR4eQYCQDAOBgNVHQ8BAf8E
-# BAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwMwdwYDVR0fBHAwbjA1oDOgMYYvaHR0
-# cDovL2NybDMuZGlnaWNlcnQuY29tL3NoYTItYXNzdXJlZC1jcy1nMS5jcmwwNaAz
-# oDGGL2h0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9zaGEyLWFzc3VyZWQtY3MtZzEu
-# Y3JsMEwGA1UdIARFMEMwNwYJYIZIAYb9bAMBMCowKAYIKwYBBQUHAgEWHGh0dHBz
-# Oi8vd3d3LmRpZ2ljZXJ0LmNvbS9DUFMwCAYGZ4EMAQQBMIGEBggrBgEFBQcBAQR4
-# MHYwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBOBggrBgEF
-# BQcwAoZCaHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0U0hBMkFz
-# c3VyZWRJRENvZGVTaWduaW5nQ0EuY3J0MAwGA1UdEwEB/wQCMAAwDQYJKoZIhvcN
-# AQELBQADggEBAI5wXkMjGctA2E/fchGVptw2Qzdp1a3C1ApX4STqxhkKaQMMJao7
-# cHarrQctdjRo2YHEsEsPpOKpQcB2gEUnhWInaghmq618MC/UYZtL/hUcGraEhRO6
-# PEDoM/2Xz1+EJJbgmS812YOih1xXrbzfgKE3Zl01VsoNjPvsD4XtEuD0Utjrwsh/
-# Qy3gD9Wb925oYOuIz9hp1+jmnQu7hlRaVr7TtxR4aTtTqQdAv35FKPqJdXXUZ9Y9
-# otWAWBgWb8YFqMTw6gig3EUORB+MyPXN/zCdwrbAcXlrMIPHhKsvJ6UkxfQkfb4Z
-# oztVtMUBChHanEVcX4bVFQwNnDVcrlt8w6IwggUwMIIEGKADAgECAhAECRgbX9W7
-# ZnVTQ7VvlVAIMA0GCSqGSIb3DQEBCwUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
-# EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
-# BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0xMzEwMjIxMjAwMDBa
-# Fw0yODEwMjIxMjAwMDBaMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2Vy
-# dCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lD
-# ZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EwggEiMA0GCSqGSIb3
-# DQEBAQUAA4IBDwAwggEKAoIBAQD407Mcfw4Rr2d3B9MLMUkZz9D7RZmxOttE9X/l
-# qJ3bMtdx6nadBS63j/qSQ8Cl+YnUNxnXtqrwnIal2CWsDnkoOn7p0WfTxvspJ8fT
-# eyOU5JEjlpB3gvmhhCNmElQzUHSxKCa7JGnCwlLyFGeKiUXULaGj6YgsIJWuHEqH
-# CN8M9eJNYBi+qsSyrnAxZjNxPqxwoqvOf+l8y5Kh5TsxHM/q8grkV7tKtel05iv+
-# bMt+dDk2DZDv5LVOpKnqagqrhPOsZ061xPeM0SAlI+sIZD5SlsHyDxL0xY4PwaLo
-# LFH3c7y9hbFig3NBggfkOItqcyDQD2RzPJ6fpjOp/RnfJZPRAgMBAAGjggHNMIIB
-# yTASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAK
-# BggrBgEFBQcDAzB5BggrBgEFBQcBAQRtMGswJAYIKwYBBQUHMAGGGGh0dHA6Ly9v
-# Y3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3aHR0cDovL2NhY2VydHMuZGln
-# aWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNydDCBgQYDVR0fBHow
-# eDA6oDigNoY0aHR0cDovL2NybDQuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJl
-# ZElEUm9vdENBLmNybDA6oDigNoY0aHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0Rp
-# Z2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDBPBgNVHSAESDBGMDgGCmCGSAGG/WwA
-# AgQwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQUzAK
-# BghghkgBhv1sAzAdBgNVHQ4EFgQUWsS5eyoKo6XqcQPAYPkt9mV1DlgwHwYDVR0j
-# BBgwFoAUReuir/SSy4IxLVGLp6chnfNtyA8wDQYJKoZIhvcNAQELBQADggEBAD7s
-# DVoks/Mi0RXILHwlKXaoHV0cLToaxO8wYdd+C2D9wz0PxK+L/e8q3yBVN7Dh9tGS
-# dQ9RtG6ljlriXiSBThCk7j9xjmMOE0ut119EefM2FAaK95xGTlz/kLEbBw6RFfu6
-# r7VRwo0kriTGxycqoSkoGjpxKAI8LpGjwCUR4pwUR6F6aGivm6dcIFzZcbEMj7uo
-# +MUSaJ/PQMtARKUT8OZkDCUIQjKyNookAv4vcn4c10lFluhZHen6dGRrsutmQ9qz
-# sIzV6Q3d9gEgzpkxYz0IGhizgZtPxpMQBvwHgfqL2vmCSfdibqFT+hKUGIUukpHq
-# aGxEMrJmoecYpJpkUe8xggQ3MIIEMwIBATCBhjByMQswCQYDVQQGEwJVUzEVMBMG
-# A1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMTEw
-# LwYDVQQDEyhEaWdpQ2VydCBTSEEyIEFzc3VyZWQgSUQgQ29kZSBTaWduaW5nIENB
-# AhAJT00SLqoJkIvAj67NF8OqMAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQow
-# CKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcC
-# AQsxDjAMBgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBTm16teRhHI0uPiStZK
-# XawjYKn7ODANBgkqhkiG9w0BAQEFAASCAQBdiQAtN2YsWgTiZ7guxL1Ms/k/VLog
-# E7YNXNiTtWpJqp3eZn/lS0WlOzdW6VsXWRWitbUlq1Ax4j4qM5h7/UI/OGhkzUnE
-# 9XU5dSoFlRxWS1xvxOKXXCnpXQgmGkaXPjoeMLzMc20S685zIq8jNViSQHjMJDtw
-# siIr0AfEgBfc4cdoq0M+cinoO7IiGcTBxlOKeWDDQKXdc5+eyDEBze/Uyopfc1Wz
-# 4M4kbXC0H36iarNNE17K1m8DZaFqRLPsu9ksepPaa58duR+WvqsTW1rTdEZf8zF1
-# Phssfan9S5IFrE18UyxLQMykC3XB7wMfos8oTVJNCD8Ri02P0OWQjhX2oYICCzCC
-# AgcGCSqGSIb3DQEJBjGCAfgwggH0AgEBMHIwXjELMAkGA1UEBhMCVVMxHTAbBgNV
-# BAoTFFN5bWFudGVjIENvcnBvcmF0aW9uMTAwLgYDVQQDEydTeW1hbnRlYyBUaW1l
-# IFN0YW1waW5nIFNlcnZpY2VzIENBIC0gRzICEA7P9DjI/r81bgTYapgbGlAwCQYF
-# Kw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkF
-# MQ8XDTE4MDUyMzE0MTMyNFowIwYJKoZIhvcNAQkEMRYEFD/F/stXzBso4dE1d2QT
-# rMTa+EG3MA0GCSqGSIb3DQEBAQUABIIBADIGeYJU+XKwE/IvTQcolmU16UYrRraZ
-# 7iyzfk3NBoWl0fB+UD4j0IZvK0M9AEjSjqnXd6b+6Q1thr0wSxyXqY309vEqRWdx
-# URUg5gBHjH9nXlMk8l6Yl1pWDoDFHJ+ifVkR3zSs6FjICVNO1WhdQmRVOLqWsX7Z
-# GFQh6vWb34vlU4VbA+7d/P/jNCFNUyZESpK8pYVRvKAZIzcv8msxTPFxJNhFCN48
-# 6xNvzyvf4eMv4a/9tFhu8tavUJ8IfMCIoZI4TbEI8wUDzSmizMMWQXgNGetVPoI7
-# pKKnCh0vCO5tdf/BNBod7fVOe2jXrGyJe3c0mj9BcxBgnMJQs2zkXYc=
-# SIG # End signature block
+
