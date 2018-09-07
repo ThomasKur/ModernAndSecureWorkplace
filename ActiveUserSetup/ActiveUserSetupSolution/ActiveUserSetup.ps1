@@ -319,7 +319,7 @@ function Set-ExitMessageRegistry () {
     [string]$ExitMessage
     )
 
-    $DateTime = Get-Date –f o
+    $DateTime = Get-Date -f o
     #The registry Key into which the information gets written must be checked and if not existing created
     if((Test-Path "HKLM:\SOFTWARE\_Custom") -eq $False)
     {
