@@ -14,6 +14,7 @@ History
     1.0.1: Added Toast Notifications and improved Wait behavior
     1.0.2: Changes in the duration that the Toast Message is shown
     1.0.3: Put task enumeration into a function
+    1.0.4: Put task processing into a function
 
 
 #>
@@ -21,7 +22,7 @@ History
 
 ## Manual Variable Definition
 ########################################################
-$ScriptVersion = "1.0.3"
+$ScriptVersion = "1.0.4"
 
 $DefaultLogOutputMode  = "LogFile"
 $DebugPreference = "Continue"
@@ -404,7 +405,7 @@ function Get-ActiveUserSetupTask {
     Enumerate the ActiveUserSetup tasks from the registry.
 
     .PARAMETER RootKey
-    The root key which has to be searched for tasks.
+    The root key, which has to be searched for tasks.
 
     .EXAMPLE
     Get-ActiveUserSetupTask -RootKey $HKLMRootKey
@@ -428,7 +429,7 @@ function Get-ActiveUserSetupTask {
         }
         else{
             Write-Log "The Key $RootKey doesn't exist"  -Type Warn
-            $RootChilds = @()
+            $RootChilds = $null
         }
     }
     catch{
@@ -437,196 +438,166 @@ function Get-ActiveUserSetupTask {
     }
     return $RootChilds
 }
-#endregion
+function Start-ChildProcessing {
+    <#
+    .DESCRIPTION
+    Processes the ActiveUserSetup task.
+
+    .PARAMETER Child
+    A child object to process.
+
+    .EXAMPLE
+    Start-ChildProcessing -Child $HKLMRootChild
+    #>
+
+    Param (
+        [Parameter(Mandatory = $true)]
+        [object]$Child
+    )
+
+    Write-Log "---------Working on $HKLMRootChild---------"
+    $TaskNeedsToBeExecuted = $False
+    $ProcessExitCode =$null
+    $WriteToUserRegistry = $false
+    $ProcessWasSuccessful = $false
+
+    #Get Task Information from HKLM
+    $CurrentTaskHKLMOptions = Get-ItemProperty -path $Child.PSPath
+    $CurrentTaskHKLMVersion = $CurrentTaskHKLMOptions.Version
+    $CurrentTaskCommandArgument = $CurrentTaskHKLMOptions.Argument
+    $CurrentTaskCommandToExecute = $CurrentTaskHKLMOptions.Execute
+    $CurrentTaskName = $CurrentTaskHKLMOptions.Name
+    $CurrentTaskWaitOnFinish= $CurrentTaskHKLMOptions.WaitOnFinish
+    $CurrentTaskSuccessfulReturnCodes = $CurrentTaskHKLMOptions.SuccessfulReturnCodes
+    $CurrentTaskOnlyWhenSuccessful = $CurrentTaskHKLMOptions.OnlyWhenSuccessful
+
+    #Get Task Information from HKCU
+    $CurrentTaskHKCUKey = "$HKCURootKey\$Child"
 
 
-#region Initialization
-########################################################
-New-Folder $LogFilePathFolder
+    #region Check if Task needs To be Executed
+    If($CurrentTaskCommandToExecute){
+        If(-not(Test-path $CurrentTaskHKCUKey)){
+            Write-Log "$CurrentTaskHKCUKey doesn't already exists. So this Task needs to be executed."
+            $TaskNeedsToBeExecuted = $true
+        } else{
+            Write-Log "$CurrentTaskHKCUKey already exists. Check if the task has a version"
 
+            If($CurrentTaskHKLMVersion){
+                Write-Log ("The Task has a Version. I have to check if the User and HKLM Version match.")
+                $HKCUTaskVersion = (Get-ItemProperty $CurrentTaskHKCUKey).Version
 
-Write-Log "----------------------------------------------------------------Start Script for User $ENV:USERNAME----------------------------------------------------------------"
-Write-Log "This is the Scriptversion '$ScriptVersion'"
-#endregion
+                If($CurrentTaskHKLMVersion -eq $HKCUTaskVersion){
+                    Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this matches the HKCUTaskVersion '$HKCUTaskVersion'. So there is no need to execute the task."
+                } else{
+                    Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this doesn't match HKCUTaskVersion '$HKCUTaskVersion'"
 
-#region Main Script
-########################################################
+                    #Check if SuccessfulReturnCodes is specified and WaitOnFinish ist set to 1 when OnlyWhenSuccessful is set to 1
+                    If($CurrentTaskOnlyWhenSuccessful -eq 1){
 
-
-    #Check if the Log is to big
-    Check-LogFileSize -Log $LogFilePath -MaxSize $MaximumLogSize
-    
-
-#region  Get Tasks from HKLM Key
-try {
-    $HKLMRootChilds = Get-ActiveUserSetupTask -RootKey $HKLMRootKey
-}
-catch {
-    End-Script; Break
-}
-
-if ($HKLMRootChilds.count -eq 0) {
-    Write-Log "There is nothing to do end script now." -Type Warn
-    End-Script
-    Break
-}
-#endregion
-
-    ForEach($HKLMRootChild in $HKLMRootChilds){
-        Write-Log "---------Working on $HKLMRootChild---------"
-        $TaskNeedsToBeExecuted = $False
-        $ProcessExitCode =$null
-        $WriteToUserRegistry = $false
-        $ProcessWasSuccessful = $false
-
-        #Get Task Information from HKLM
-        $CurrentTaskHKLMOptions = Get-ItemProperty -path $HKLMRootChild.PSPath
-        $CurrentTaskHKLMVersion = $CurrentTaskHKLMOptions.Version
-        $CurrentTaskCommandArgument = $CurrentTaskHKLMOptions.Argument
-        $CurrentTaskCommandToExecute = $CurrentTaskHKLMOptions.Execute
-        $CurrentTaskName = $CurrentTaskHKLMOptions.Name
-        $CurrentTaskWaitOnFinish= $CurrentTaskHKLMOptions.WaitOnFinish
-        $CurrentTaskSuccessfulReturnCodes = $CurrentTaskHKLMOptions.SuccessfulReturnCodes
-        $CurrentTaskOnlyWhenSuccessful = $CurrentTaskHKLMOptions.OnlyWhenSuccessful
-
-        #Get Task Information from HKLM
-        $CurrentTaskHKCUKey = "$HKCURootKey\$HKLMRootChild"
-
-
-#region Check if Task needs To be Executed
-        If($CurrentTaskCommandToExecute){
-            If(-not(Test-path $CurrentTaskHKCUKey)){
-                Write-Log "$CurrentTaskHKCUKey doesn't already exists. So this Task needs to be executed."
-                $TaskNeedsToBeExecuted = $true
-            }
-            else{
-                Write-Log "$CurrentTaskHKCUKey already exists. Check if the task has a version"
-
-                If($CurrentTaskHKLMVersion){
-                    Write-Log ("The Task has a Version. I have to check if the User and HKLM Version match.")
-                    $HKCUTaskVersion = (Get-ItemProperty $CurrentTaskHKCUKey).Version
-
-                    If($CurrentTaskHKLMVersion -eq $HKCUTaskVersion){
-                        Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this matches the HKCUTaskVersion '$HKCUTaskVersion'. So there is no need to execute the task."
-                    }
-                    else{
-                        Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this doesn't match HKCUTaskVersion '$HKCUTaskVersion'"
-
-                        #Check if SuccessfulReturnCodes is specified and WaitOnFinish ist set to 1 when OnlyWhenSuccessful is set to 1
-                        If($CurrentTaskOnlyWhenSuccessful -eq 1){
-
-                            If($CurrentTaskSuccessfulReturnCodes){                            
-                                If($CurrentTaskWaitOnFinish -eq 1){
-                                    $TaskNeedsToBeExecuted = $true
-                                }
-                                else{
-                                    Write-Log "The Task is configured as OnlyWhenSuccessful. But WaitOnFinish is not set to 1. I'm skipping it." -Type Error
-                                }
+                        If($CurrentTaskSuccessfulReturnCodes){                            
+                            If($CurrentTaskWaitOnFinish -eq 1){
+                                $TaskNeedsToBeExecuted = $true
+                            } else{
+                                Write-Log "The Task is configured as OnlyWhenSuccessful. But WaitOnFinish is not set to 1. I'm skipping it." -Type Error
                             }
-                            else{
-                                Write-Log "The Task is configured as OnlyWhenSuccessful. But there are no SuccessfulReturnCodes defined. I'm skipping it." -Type Error
-                            }
+                        } else{
+                            Write-Log "The Task is configured as OnlyWhenSuccessful. But there are no SuccessfulReturnCodes defined. I'm skipping it." -Type Error
                         }
-                        else{
-                            $TaskNeedsToBeExecuted = $true
-                        }
+                    } else{
+                        $TaskNeedsToBeExecuted = $true
                     }
                 }
-                else{
-                    Write-Log "The Task has no Version. So there is no need to execute the task."
-                }
+            } else{
+                Write-Log "The Task has no Version. So there is no need to execute the task."
             }
         }
-        else{
-            Write-Log "The Task has no 'Execute' Command. In this case i can't execute it!" -Type Warn
+    } else{
+        Write-Log "The Task has no 'Execute' Command. In this case i can't execute it!" -Type Warn
+    }
+    #endregion
+
+
+    If($TaskNeedsToBeExecuted){
+    #region Execute the Task
+        Write-Log "The current Task has the following Options:"
+        Write-Log "Name = $CurrentTaskName"
+        Write-Log "Execute = $CurrentTaskCommandToExecute"
+        Write-Log "Argument = $CurrentTaskCommandArgument"
+        Write-Log "Version =  $CurrentTaskHKLMVersion"
+        Write-Log "WaitOnFinish = $CurrentTaskWaitOnFinish"
+        Write-Log "SuccessfulReturnCodes= $CurrentTaskSuccessfulReturnCodes"
+        Write-Log "OnlyWhenSuccessful = $CurrentTaskOnlyWhenSuccessful"
+        $SecondsCounter = 0
+        $TotalSeconds = 0
+        If($CurrentTaskName){
+            $ToastMessage = $CurrentTaskName
+        } else{
+            $ToastMessage = "$CurrentTaskCommandToExecute $CurrentTaskCommandArgument"
         }
-#endregion
 
+        Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Starting"
 
-        If($TaskNeedsToBeExecuted){
-#region Execute the Task
-            Write-Log "The current Task has the following Options:"
-            Write-Log "Name = $CurrentTaskName"
-            Write-Log "Execute = $CurrentTaskCommandToExecute"
-            Write-Log "Argument = $CurrentTaskCommandArgument"
-            Write-Log "Version =  $CurrentTaskHKLMVersion"
-            Write-Log "WaitOnFinish = $CurrentTaskWaitOnFinish"
-            Write-Log "SuccessfulReturnCodes= $CurrentTaskSuccessfulReturnCodes"
-            Write-Log "OnlyWhenSuccessful = $CurrentTaskOnlyWhenSuccessful"
-            $SecondsCounter = 0
-            $TotalSeconds = 0
-            If($CurrentTaskName){
-                $ToastMessage = $CurrentTaskName
-            }
-            else{
-                $ToastMessage = "$CurrentTaskCommandToExecute $CurrentTaskCommandArgument"
-            }
+        try{
+            If($CurrentTaskWaitOnFinish -eq 1){
+                If($CurrentTaskCommandArgument){
+                    Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument', and waiting for it to finish"
 
-            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Starting"
+                    $Process = Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument 
 
-            try{
-                If($CurrentTaskWaitOnFinish -eq 1){
-                    If($CurrentTaskCommandArgument){
-                        Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument', and waiting for it to finish"
-
-                        $Process = Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument 
-
-                        do{
-                            start-sleep -seconds 1
-                            $SecondsCounter = $SecondsCounter +1
-                            $TotalSeconds = $TotalSeconds +1
-                            If($SecondsCounter -eq 10){
-                                $SecondsCounter = 0
-                                Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
-                            }
+                    do{
+                        start-sleep -seconds 1
+                        $SecondsCounter = $SecondsCounter +1
+                        $TotalSeconds = $TotalSeconds +1
+                        If($SecondsCounter -eq 10){
+                            $SecondsCounter = 0
+                            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
                         }
-                        until ($Process.HasExited)                        
-
-                        $ProcessExitCode = $Process.ExitCode
-
-
-                        Write-Log "Executed the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument'. It ended with the Exit Code $ProcessExitCode"
                     }
-                    else{
-                        Write-Log "Executing the Command $CurrentTaskCommandToExecute, and waiting for it to finish"
+                    until ($Process.HasExited)                        
 
-                        $Process = Start-Process -PassThru $CurrentTaskCommandToExecute
+                    $ProcessExitCode = $Process.ExitCode
 
 
-                        do{
-                            start-sleep -seconds 1
-                            $SecondsCounter = $SecondsCounter +1
-                            $TotalSeconds = $TotalSeconds +1
-                            If($SecondsCounter -eq 10){
-                                $SecondsCounter = 0
-                                Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
-                            }
+                    Write-Log "Executed the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument'. It ended with the Exit Code $ProcessExitCode"
+                } else{
+                    Write-Log "Executing the Command $CurrentTaskCommandToExecute, and waiting for it to finish"
+
+                    $Process = Start-Process -PassThru $CurrentTaskCommandToExecute
+
+
+                    do{
+                        start-sleep -seconds 1
+                        $SecondsCounter = $SecondsCounter +1
+                        $TotalSeconds = $TotalSeconds +1
+                        If($SecondsCounter -eq 10){
+                            $SecondsCounter = 0
+                            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
                         }
-                        until ($Process.HasExited)                        
-
-                        $ProcessExitCode = $Process.ExitCode
-
-
-                        Write-Log "Executed the Command $CurrentTaskCommandToExecute. It ended with the Exit Code $ProcessExitCode"
                     }
-                }
-                else{
-                    If($CurrentTaskCommandArgument){
-                        Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument', and not waiting for it to finish"
-                        Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument | Out-Null
-                    }
-                    else{
-                        Write-Log "Executing the Command $CurrentTaskCommandToExecute, and not waiting for it to finish"
-                        Start-Process -PassThru $CurrentTaskCommandToExecute | Out-Null
-                    }            
-                }
-            }
-            catch{
-                Write-Log "Executing the Command failed"  -Type Error -Exception $_.Exception
-            }
-#endregion
+                    until ($Process.HasExited)                        
 
-#region Check if Process was Succesfull
+                    $ProcessExitCode = $Process.ExitCode
+
+
+                    Write-Log "Executed the Command $CurrentTaskCommandToExecute. It ended with the Exit Code $ProcessExitCode"
+                }
+            } else{
+                If($CurrentTaskCommandArgument){
+                    Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument', and not waiting for it to finish"
+                    Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument | Out-Null
+                } else{
+                    Write-Log "Executing the Command $CurrentTaskCommandToExecute, and not waiting for it to finish"
+                    Start-Process -PassThru $CurrentTaskCommandToExecute | Out-Null
+                }            
+            }
+        }
+        catch{
+            Write-Log "Executing the Command failed"  -Type Error -Exception $_.Exception
+        }
+    #endregion
+
+    #region Check if Process was Succesfull
         If($CurrentTaskOnlyWhenSuccessful -eq 1){
         
             $SuccessfulReturnCodesList = $CurrentTaskSuccessfulReturnCodes.Split(";")
@@ -656,24 +627,60 @@ if ($HKLMRootChilds.count -eq 0) {
 
         }
         
+    #endregion
+
+    #region Write to User Registry
+
+        Try{
+            If($WriteToUserRegistry){
+                Set-RegValue -Path $CurrentTaskHKCUKey -Name "Version" -Value $CurrentTaskHKLMVersion -Type String
+            }
+        }
+        catch{
+            Write-Log "Error writing to $CurrentTaskHKCUKey"  -Type Error -Exception $_.Exception
+        }
+
+
+    #endregion
+    }
+}
 #endregion
 
-#region Write to User Registry
 
-    Try{
-        If($WriteToUserRegistry){
-            Set-RegValue -Path $CurrentTaskHKCUKey -Name "Version" -Value $CurrentTaskHKLMVersion -Type String
-        }
-    }
-    catch{
-        Write-Log "Error writing to $CurrentTaskHKCUKey"  -Type Error -Exception $_.Exception
-    }
+#region Initialization
+########################################################
+New-Folder $LogFilePathFolder
 
 
+Write-Log "----------------------------------------------------------------Start Script for User $ENV:USERNAME----------------------------------------------------------------"
+Write-Log "This is the Scriptversion '$ScriptVersion'"
 #endregion
 
+#region Main Script
+########################################################
 
-        }
+
+    #Check if the Log is to big
+    Check-LogFileSize -Log $LogFilePath -MaxSize $MaximumLogSize
+    
+
+#region  Get Tasks from HKLM Key
+try {
+    $HKLMRootChilds = Get-ActiveUserSetupTask -RootKey $HKLMRootKey
+}
+catch {
+    End-Script; Break
+}
+
+if ($HKLMRootChilds.count -eq $null) {
+    Write-Log "There is nothing to do end script now." -Type Warn
+    End-Script
+    Break
+}
+#endregion
+
+ForEach($HKLMRootChild in $HKLMRootChilds){
+    Start-ChildProcessing -Child $HKLMRootChild
 }
 
 
