@@ -14,7 +14,7 @@
 	</Product>	
 	<Fragment>
 		<Directory Id='TARGETDIR' Name='SourceDir'>
-			<Directory Id="ProgramFiles64Folder">
+			<Directory Id="ProgramFilesFolder">
 				<Directory Id="ManufacturerFolder" Name="baseVISION">
 					<Directory Id="ProductFolder" Name="GPOtoMSI" />
 				</Directory>
@@ -37,6 +37,7 @@
 	<Fragment>
 		<Feature Id="MainApplication" Title="Main Application" Level="1">
 			<ComponentGroupRef Id="GPOFiles" />
+			<ComponentGroupRef Id="ADMXFiles" />
 			<ComponentGroupRef Id="Fake" />
 		</Feature>
 	</Fragment>

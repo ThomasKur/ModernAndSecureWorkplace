@@ -19,6 +19,9 @@
 					<Directory Id="ProductFolder" Name="GPOtoMSI" />
 				</Directory>
 			</Directory>
+			<Directory Id="WindowsFolder">
+				<Directory Id="PolicyDefinitions" Name="PolicyDefinitions" />
+			</Directory>
 		</Directory>
 	</Fragment>	
 	

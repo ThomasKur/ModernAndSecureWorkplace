@@ -37,6 +37,7 @@
 	<Fragment>
 		<Feature Id="MainApplication" Title="Main Application" Level="1">
 			<ComponentGroupRef Id="GPOFiles" />
+			<ComponentGroupRef Id="ADMXFiles" />
 			<ComponentGroupRef Id="Fake" />
 		</Feature>
 	</Fragment>
