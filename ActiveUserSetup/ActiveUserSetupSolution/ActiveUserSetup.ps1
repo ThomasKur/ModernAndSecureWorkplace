@@ -13,6 +13,7 @@ History
     1.0.0: First Version
     1.0.1: Added Toast Notifications and improved Wait behavior
     1.0.2: Changes in the duration that the Toast Message is shown
+    1.1.0: Added support for 32bit task entrys on 64bit OS and a flag for the task window style
 
 
 #>
@@ -20,7 +21,7 @@ History
 
 ## Manual Variable Definition
 ########################################################
-$ScriptVersion = "1.0.2"
+$ScriptVersion = "1.1.0"
 
 $DefaultLogOutputMode  = "LogFile"
 $DebugPreference = "Continue"
@@ -42,8 +43,10 @@ $LogFilePath = "$LogFilePathFolder\ActiveUserSetup.log"
 $ReturnCodesDelimiter = ";"
 
 
-$HKLMRootKey = "HKLM:\Software\ActiveUserSetup"
+$HKLMRootKey = "HKLM:\SOFTWARE\ActiveUserSetup"
+$HKLMRootKey32 = "HKLM:\SOFTWARE\WOW6432Node\ActiveUserSetup"
 $HKCURootKey = "HKCU:\Software\ActiveUserSetup"
+$HKCURootKey32 = "HKCU:\SOFTWARE\WOW6432Node\ActiveUserSetup"
 
 #region Functions
 ########################################################
@@ -137,6 +140,8 @@ Function Show-ToastMessage{
 
 
 }
+
+
 function Write-Log {
     <#
     .DESCRIPTION
@@ -217,6 +222,8 @@ function Write-Log {
         }
     }
 }
+
+
 function New-Folder{
     <#
     .DESCRIPTION
@@ -244,6 +251,8 @@ function New-Folder{
 		Write-Log "Creating $Path"
 	}
 }
+
+
 function Set-RegValue {
     <#
     .DESCRIPTION
@@ -293,6 +302,8 @@ function Set-RegValue {
         Write-Log "Registry value not set $Path, $Name, $Value, $Type" -Type Error -Exception $_.Exception
     }
 }
+
+
 function Set-ExitMessageRegistry () {
     <#
     .DESCRIPTION
@@ -317,7 +328,7 @@ function Set-ExitMessageRegistry () {
     [string]$ExitMessage
     )
 
-    $DateTime = Get-Date –f o
+    $DateTime = Get-Date -f o
     #The registry Key into which the information gets written must be checked and if not existing created
     if((Test-Path "HKLM:\SOFTWARE\_Custom") -eq $False)
     {
@@ -341,6 +352,8 @@ function Set-ExitMessageRegistry () {
         $Error[0].InvocationInfo.PositionMessage
     }
 }
+
+
 function Check-LogFileSize {
     <#
     .DESCRIPTION
@@ -394,212 +407,213 @@ function Check-LogFileSize {
         }
 
 	} else {
-		Write-Log "The Log $Log doesn't exists"
+	    Write-Log "The Log $Log doesn't exists"
 	}
 }
 
-#endregion
 
+function Get-ActiveUserSetupTask {
+    <#
+    .DESCRIPTION
+    Enumerate the ActiveUserSetup tasks from the registry.
 
-#region Initialization
-########################################################
-New-Folder $LogFilePathFolder
+    .PARAMETER RootKey
+    The root key, which has to be searched for tasks.
 
+    .EXAMPLE
+    Get-ActiveUserSetupTask -RootKey $HKLMRootKey
+    #>
 
-Write-Log "----------------------------------------------------------------Start Script for User $ENV:USERNAME----------------------------------------------------------------"
-Write-Log "This is the Scriptversion '$ScriptVersion'"
-#endregion
+    Param (
+        [Parameter(Mandatory = $true)]
+        [string]$RootKey
+    )
 
-#region Main Script
-########################################################
-
-
-    #Check if the Log is to big
-    Check-LogFileSize -Log $LogFilePath -MaxSize $MaximumLogSize
-    
-
-#region  Get Tasks from HKLM Key
     Try{
-        If(Test-Path $HKLMRootKey){
-            Write-Log "Found the Key $HKLMRootKey"
-            $HKLMRootChilds =Get-ChildItem -Name -Path $HKLMRootKey
-            If($HKLMRootChilds.count -gt 0){
-                Write-Log ("$HKLMRootKey has " +$HKLMRootChilds.count + " Childs")
+        If(Test-Path $RootKey){
+            Write-Log "Found the Key $RootKey"
+            $RootChilds =Get-ChildItem -Name -Path $RootKey
+            If($RootChilds.count -gt 0){
+                Write-Log ("$RootKey has " +$RootChilds.count + " Childs")
             }
             else{
-                Write-Log "$HKLMRootKey has no Childs. So there is nothing to do."  -Type Warn
-                End-Script
-                Break
+                Write-Log "$RootKey has no Childs. So there is nothing to do."  -Type Warn
             }
         }
         else{
-            Write-Log "The Key $HKLMRootKey doesn't exist"  -Type Warn
-            End-Script
-            Break
+            Write-Log "The Key $RootKey doesn't exist"  -Type Warn
+            $RootChilds = $null
         }
     }
     catch{
-        Write-Log "Error reading from $HKLMRootKey"  -Type Error -Exception $_.Exception
-        End-Script
-        Break
+        Write-Log "Error reading from $RootKey"  -Type Error -Exception $_.Exception
+        Throw "Error reading from $RootKey"
     }
-#endregion
-
-    ForEach($HKLMRootChild in $HKLMRootChilds){
-        Write-Log "---------Working on $HKLMRootChild---------"
-        $TaskNeedsToBeExecuted = $False
-        $ProcessExitCode =$null
-        $WriteToUserRegistry = $false
-        $ProcessWasSuccessful = $false
-
-        #Get Task Information from HKLM
-        $CurrentTaskHKLMOptions = Get-ItemProperty -path $HKLMRootChild.PSPath
-        $CurrentTaskHKLMVersion = $CurrentTaskHKLMOptions.Version
-        $CurrentTaskCommandArgument = $CurrentTaskHKLMOptions.Argument
-        $CurrentTaskCommandToExecute = $CurrentTaskHKLMOptions.Execute
-        $CurrentTaskName = $CurrentTaskHKLMOptions.Name
-        $CurrentTaskWaitOnFinish= $CurrentTaskHKLMOptions.WaitOnFinish
-        $CurrentTaskSuccessfulReturnCodes = $CurrentTaskHKLMOptions.SuccessfulReturnCodes
-        $CurrentTaskOnlyWhenSuccessful = $CurrentTaskHKLMOptions.OnlyWhenSuccessful
-
-        #Get Task Information from HKLM
-        $CurrentTaskHKCUKey = "$HKCURootKey\$HKLMRootChild"
+    return $RootChilds
+}
 
 
-#region Check if Task needs To be Executed
-        If($CurrentTaskCommandToExecute){
-            If(-not(Test-path $CurrentTaskHKCUKey)){
-                Write-Log "$CurrentTaskHKCUKey doesn't already exists. So this Task needs to be executed."
-                $TaskNeedsToBeExecuted = $true
-            }
-            else{
-                Write-Log "$CurrentTaskHKCUKey already exists. Check if the task has a version"
+function Start-ChildProcessing {
+    <#
+    .DESCRIPTION
+    Processes the ActiveUserSetup task.
 
-                If($CurrentTaskHKLMVersion){
-                    Write-Log ("The Task has a Version. I have to check if the User and HKLM Version match.")
-                    $HKCUTaskVersion = (Get-ItemProperty $CurrentTaskHKCUKey).Version
+    .PARAMETER Child
+    A child object to process.
 
-                    If($CurrentTaskHKLMVersion -eq $HKCUTaskVersion){
-                        Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this matches the HKCUTaskVersion '$HKCUTaskVersion'. So there is no need to execute the task."
-                    }
-                    else{
-                        Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this doesn't match HKCUTaskVersion '$HKCUTaskVersion'"
+    .EXAMPLE
+    Start-ChildProcessing -Child $HKLMRootChild
+    #>
 
-                        #Check if SuccessfulReturnCodes is specified and WaitOnFinish ist set to 1 when OnlyWhenSuccessful is set to 1
-                        If($CurrentTaskOnlyWhenSuccessful -eq 1){
+    Param (
+        [Parameter(Mandatory = $true)]
+        [object]$Child
+    )
 
-                            If($CurrentTaskSuccessfulReturnCodes){                            
-                                If($CurrentTaskWaitOnFinish -eq 1){
-                                    $TaskNeedsToBeExecuted = $true
-                                }
-                                else{
-                                    Write-Log "The Task is configured as OnlyWhenSuccessful. But WaitOnFinish is not set to 1. I'm skipping it." -Type Error
-                                }
+    Write-Log "---------Working on $HKLMRootChild---------"
+    $TaskNeedsToBeExecuted = $False
+    $ProcessExitCode =$null
+    $WriteToUserRegistry = $false
+    $ProcessWasSuccessful = $false
+
+    #Get Task Information from HKLM
+    $CurrentTaskHKLMOptions = Get-ItemProperty -path $Child.PSPath
+    $CurrentTaskHKLMVersion = $CurrentTaskHKLMOptions.Version
+    $CurrentTaskCommandArgument = $CurrentTaskHKLMOptions.Argument
+    $CurrentTaskCommandToExecute = $CurrentTaskHKLMOptions.Execute
+    $CurrentTaskName = $CurrentTaskHKLMOptions.Name
+    $CurrentTaskWaitOnFinish= $CurrentTaskHKLMOptions.WaitOnFinish
+    $CurrentTaskSuccessfulReturnCodes = $CurrentTaskHKLMOptions.SuccessfulReturnCodes
+    $CurrentTaskOnlyWhenSuccessful = $CurrentTaskHKLMOptions.OnlyWhenSuccessful
+    $CurrentTaskWindowStyle = $CurrentTaskHKLMOptions.WindowStyle
+
+    #Get Task Information from HKCU
+    if ($Child.PSPath.ToLower() -like '*\wow6432node\*') {
+    	$CurrentTaskHKCUKey = "$HKCURootKey32\$Child"
+    } else {
+        $CurrentTaskHKCUKey = "$HKCURootKey\$Child"
+    }
+
+
+    #region Check if Task needs To be Executed
+    If($CurrentTaskCommandToExecute){
+        If(-not(Test-path $CurrentTaskHKCUKey)){
+            Write-Log "$CurrentTaskHKCUKey doesn't already exists. So this Task needs to be executed."
+            $TaskNeedsToBeExecuted = $true
+        } else{
+            Write-Log "$CurrentTaskHKCUKey already exists. Check if the task has a version"
+
+            If($CurrentTaskHKLMVersion){
+                Write-Log ("The Task has a Version. I have to check if the User and HKLM Version match.")
+                $HKCUTaskVersion = (Get-ItemProperty $CurrentTaskHKCUKey).Version
+
+                If($CurrentTaskHKLMVersion -eq $HKCUTaskVersion){
+                    Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this matches the HKCUTaskVersion '$HKCUTaskVersion'. So there is no need to execute the task."
+                } else{
+                    Write-Log "The CurrentTaskHKLMVersion is '$CurrentTaskHKLMVersion' this doesn't match HKCUTaskVersion '$HKCUTaskVersion'"
+
+                    #Check if SuccessfulReturnCodes is specified and WaitOnFinish ist set to 1 when OnlyWhenSuccessful is set to 1
+                    If($CurrentTaskOnlyWhenSuccessful -eq 1){
+
+                        If($CurrentTaskSuccessfulReturnCodes){                            
+                            If($CurrentTaskWaitOnFinish -eq 1){
+                                $TaskNeedsToBeExecuted = $true
+                            } else{
+                                Write-Log "The Task is configured as OnlyWhenSuccessful. But WaitOnFinish is not set to 1. I'm skipping it." -Type Error
                             }
-                            else{
-                                Write-Log "The Task is configured as OnlyWhenSuccessful. But there are no SuccessfulReturnCodes defined. I'm skipping it." -Type Error
-                            }
+                        } else{
+                            Write-Log "The Task is configured as OnlyWhenSuccessful. But there are no SuccessfulReturnCodes defined. I'm skipping it." -Type Error
                         }
-                        else{
-                            $TaskNeedsToBeExecuted = $true
-                        }
+                    } else{
+                        $TaskNeedsToBeExecuted = $true
                     }
                 }
-                else{
-                    Write-Log "The Task has no Version. So there is no need to execute the task."
-                }
+            } else{
+                Write-Log "The Task has no Version. So there is no need to execute the task."
             }
         }
-        else{
-            Write-Log "The Task has no 'Execute' Command. In this case i can't execute it!" -Type Warn
+    } else{
+        Write-Log "The Task has no 'Execute' Command. In this case i can't execute it!" -Type Warn
+    }
+    #endregion
+
+
+    If($TaskNeedsToBeExecuted){
+    #region Execute the Task
+        Write-Log "The current Task has the following Options:"
+        Write-Log "Name = $CurrentTaskName"
+        Write-Log "Execute = $CurrentTaskCommandToExecute"
+        Write-Log "Argument = $CurrentTaskCommandArgument"
+        Write-Log "Version =  $CurrentTaskHKLMVersion"
+        Write-Log "WaitOnFinish = $CurrentTaskWaitOnFinish"
+        Write-Log "SuccessfulReturnCodes= $CurrentTaskSuccessfulReturnCodes"
+        Write-Log "OnlyWhenSuccessful = $CurrentTaskOnlyWhenSuccessful"
+        Write-Log "WindowStyle = $CurrentTaskWindowStyle"
+        $SecondsCounter = 0
+        $TotalSeconds = 0
+        If($CurrentTaskName){
+            $ToastMessage = $CurrentTaskName
+        } else{
+            $ToastMessage = "$CurrentTaskCommandToExecute $CurrentTaskCommandArgument"
         }
-#endregion
 
+	if ($CurrentTaskWindowStyle -eq $null) {
+            $CurrentTaskWindowStyle = 0
+        }
 
-        If($TaskNeedsToBeExecuted){
-#region Execute the Task
-            Write-Log "The current Task has the following Options:"
-            Write-Log "Name = $CurrentTaskName"
-            Write-Log "Execute = $CurrentTaskCommandToExecute"
-            Write-Log "Argument = $CurrentTaskCommandArgument"
-            Write-Log "Version =  $CurrentTaskHKLMVersion"
-            Write-Log "WaitOnFinish = $CurrentTaskWaitOnFinish"
-            Write-Log "SuccessfulReturnCodes= $CurrentTaskSuccessfulReturnCodes"
-            Write-Log "OnlyWhenSuccessful = $CurrentTaskOnlyWhenSuccessful"
-            $SecondsCounter = 0
-            $TotalSeconds = 0
-            If($CurrentTaskName){
-                $ToastMessage = $CurrentTaskName
-            }
-            else{
-                $ToastMessage = "$CurrentTaskCommandToExecute $CurrentTaskCommandArgument"
-            }
+        switch ($CurrentTaskWindowStyle) {
+            1 {$WindowStyle = 'Maximized'}
+            2 {$WindowStyle = 'Minimized'}
+            3 {$WindowStyle = 'Hidden'}
+            default {$WindowStyle = 'Normal'}
+        }
 
-            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Starting"
+        Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Starting"
 
-            try{
-                If($CurrentTaskWaitOnFinish -eq 1){
-                    If($CurrentTaskCommandArgument){
-                        Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument', and waiting for it to finish"
+        try{
+            If($CurrentTaskWaitOnFinish -eq 1){
+                If($CurrentTaskCommandArgument){
+                    $LogCommand = "`'$CurrentTaskCommandToExecute $CurrentTaskCommandArgument`'"
+                    Write-Log "Executing the Command $LogCommand, and waiting for it to finish"
 
-                        $Process = Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument 
+                    $Process = Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument -WindowStyle $WindowStyle
+                } else{
+                    $LogCommand = $CurrentTaskCommandToExecute
+                    Write-Log "Executing the Command $LogCommand, and waiting for it to finish"
 
-                        do{
-                            start-sleep -seconds 1
-                            $SecondsCounter = $SecondsCounter +1
-                            $TotalSeconds = $TotalSeconds +1
-                            If($SecondsCounter -eq 10){
-                                $SecondsCounter = 0
-                                Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
-                            }
-                        }
-                        until ($Process.HasExited)                        
+                    $Process = Start-Process -PassThru $CurrentTaskCommandToExecute -WindowStyle $WindowStyle
+                }
 
-                        $ProcessExitCode = $Process.ExitCode
-
-
-                        Write-Log "Executed the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument'. It ended with the Exit Code $ProcessExitCode"
-                    }
-                    else{
-                        Write-Log "Executing the Command $CurrentTaskCommandToExecute, and waiting for it to finish"
-
-                        $Process = Start-Process -PassThru $CurrentTaskCommandToExecute
-
-
-                        do{
-                            start-sleep -seconds 1
-                            $SecondsCounter = $SecondsCounter +1
-                            $TotalSeconds = $TotalSeconds +1
-                            If($SecondsCounter -eq 10){
-                                $SecondsCounter = 0
-                                Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
-                            }
-                        }
-                        until ($Process.HasExited)                        
-
-                        $ProcessExitCode = $Process.ExitCode
-
-
-                        Write-Log "Executed the Command $CurrentTaskCommandToExecute. It ended with the Exit Code $ProcessExitCode"
+                do{
+                    start-sleep -seconds 1
+                    $SecondsCounter = $SecondsCounter +1
+                    $TotalSeconds = $TotalSeconds +1
+                    If($SecondsCounter -eq 10){
+                        $SecondsCounter = 0
+                        Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "It took already $TotalSeconds Seconds"
                     }
                 }
-                else{
-                    If($CurrentTaskCommandArgument){
-                        Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument', and not waiting for it to finish"
-                        Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument | Out-Null
-                    }
-                    else{
-                        Write-Log "Executing the Command $CurrentTaskCommandToExecute, and not waiting for it to finish"
-                        Start-Process -PassThru $CurrentTaskCommandToExecute | Out-Null
-                    }            
-                }
-            }
-            catch{
-                Write-Log "Executing the Command failed"  -Type Error -Exception $_.Exception
-            }
-#endregion
+                until ($Process.HasExited)                        
 
-#region Check if Process was Succesfull
+                $ProcessExitCode = $Process.ExitCode
+
+                Write-Log "Executed the Command $LogCommand. It ended with the Exit Code $ProcessExitCode"
+            } else{
+                If($CurrentTaskCommandArgument){
+                    Write-Log "Executing the Command '$CurrentTaskCommandToExecute $CurrentTaskCommandArgument'"
+                    Start-Process -PassThru $CurrentTaskCommandToExecute -ArgumentList $CurrentTaskCommandArgument -WindowStyle $WindowStyle | Out-Null
+                } else{
+                    Write-Log "Executing the Command $CurrentTaskCommandToExecute"
+                    Start-Process -PassThru $CurrentTaskCommandToExecute -WindowStyle $WindowStyle | Out-Null
+                }            
+            }
+        }
+        catch{
+            Write-Log "Executing the Command failed"  -Type Error -Exception $_.Exception
+        }
+    #endregion
+
+    #region Check if Process was Succesfull
         If($CurrentTaskOnlyWhenSuccessful -eq 1){
         
             $SuccessfulReturnCodesList = $CurrentTaskSuccessfulReturnCodes.Split(";")
@@ -625,28 +639,77 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
         }
         else{
             $WriteToUserRegistry = $true
-            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Finished with Exitcode $ProcessExitCode"
+            Show-ToastMessage -Titel "Executing Active User Setup" -Message $ToastMessage -ProgressStatus "Running"
 
         }
         
+    #endregion
+
+    #region Write to User Registry
+
+        Try{
+            If($WriteToUserRegistry){
+                Set-RegValue -Path $CurrentTaskHKCUKey -Name "Version" -Value $CurrentTaskHKLMVersion -Type String
+            }
+        }
+        catch{
+            Write-Log "Error writing to $CurrentTaskHKCUKey"  -Type Error -Exception $_.Exception
+        }
+
+
+    #endregion
+    }
+}
 #endregion
 
-#region Write to User Registry
 
-    Try{
-        If($WriteToUserRegistry){
-            Set-RegValue -Path $CurrentTaskHKCUKey -Name "Version" -Value $CurrentTaskHKLMVersion -Type String
-        }
-    }
-    catch{
-        Write-Log "Error writing to $CurrentTaskHKCUKey"  -Type Error -Exception $_.Exception
-    }
+#region Initialization
+########################################################
+New-Folder $LogFilePathFolder
 
 
+Write-Log "----------------------------------------------------------------Start Script for User $ENV:USERNAME----------------------------------------------------------------"
+Write-Log "This is the Scriptversion '$ScriptVersion'"
 #endregion
 
+#region Main Script
+########################################################
 
-        }
+
+    #Check if the Log is to big
+    Check-LogFileSize -Log $LogFilePath -MaxSize $MaximumLogSize
+    
+
+#region  Get Tasks from HKLM Key
+try {
+    $HKLMRootChilds = Get-ActiveUserSetupTask -RootKey $HKLMRootKey
+    if ((Get-CimInstance -ClassName Win32_OperatingSystem).OSArchitecture -eq '64-Bit') {
+        $HKLMRootChilds32 = Get-ActiveUserSetupTask -RootKey $HKLMRootKey32
+    } else {
+        $HKLMRootChilds32 = $null
+    }
+}
+catch {
+    End-Script; Break
+}
+
+if ($HKLMRootChilds -eq $null -and $HKLMRootChilds32 -eq $null) {
+    Write-Log "There is nothing to do end script now." -Type Warn
+    End-Script
+    Break
+}
+#endregion
+
+if ($HKLMRootChilds -ne $null) {
+    ForEach($HKLMRootChild in $HKLMRootChilds){
+        Start-ChildProcessing -Child $HKLMRootChild
+    }
+}
+
+if ($HKLMRootChilds32 -ne $null) {
+    ForEach($HKLMRootChild in $HKLMRootChilds32) {
+        Start-ChildProcessing -Child $HKLMRootChild
+    }
 }
 
 
@@ -658,132 +721,182 @@ Write-Log "This is the Scriptversion '$ScriptVersion'"
 End-Script
 
 #endregion
+
+
 # SIG # Begin signature block
-# MIIXxQYJKoZIhvcNAQcCoIIXtjCCF7ICAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
+# MIIgwgYJKoZIhvcNAQcCoIIgszCCIK8CAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU829Ppxo+JfCRG9JXRx9ePHdW
-# FwugghL4MIID7jCCA1egAwIBAgIQfpPr+3zGTlnqS5p31Ab8OzANBgkqhkiG9w0B
-# AQUFADCBizELMAkGA1UEBhMCWkExFTATBgNVBAgTDFdlc3Rlcm4gQ2FwZTEUMBIG
-# A1UEBxMLRHVyYmFudmlsbGUxDzANBgNVBAoTBlRoYXd0ZTEdMBsGA1UECxMUVGhh
-# d3RlIENlcnRpZmljYXRpb24xHzAdBgNVBAMTFlRoYXd0ZSBUaW1lc3RhbXBpbmcg
-# Q0EwHhcNMTIxMjIxMDAwMDAwWhcNMjAxMjMwMjM1OTU5WjBeMQswCQYDVQQGEwJV
-# UzEdMBsGA1UEChMUU3ltYW50ZWMgQ29ycG9yYXRpb24xMDAuBgNVBAMTJ1N5bWFu
-# dGVjIFRpbWUgU3RhbXBpbmcgU2VydmljZXMgQ0EgLSBHMjCCASIwDQYJKoZIhvcN
-# AQEBBQADggEPADCCAQoCggEBALGss0lUS5ccEgrYJXmRIlcqb9y4JsRDc2vCvy5Q
-# WvsUwnaOQwElQ7Sh4kX06Ld7w3TMIte0lAAC903tv7S3RCRrzV9FO9FEzkMScxeC
-# i2m0K8uZHqxyGyZNcR+xMd37UWECU6aq9UksBXhFpS+JzueZ5/6M4lc/PcaS3Er4
-# ezPkeQr78HWIQZz/xQNRmarXbJ+TaYdlKYOFwmAUxMjJOxTawIHwHw103pIiq8r3
-# +3R8J+b3Sht/p8OeLa6K6qbmqicWfWH3mHERvOJQoUvlXfrlDqcsn6plINPYlujI
-# fKVOSET/GeJEB5IL12iEgF1qeGRFzWBGflTBE3zFefHJwXECAwEAAaOB+jCB9zAd
-# BgNVHQ4EFgQUX5r1blzMzHSa1N197z/b7EyALt0wMgYIKwYBBQUHAQEEJjAkMCIG
-# CCsGAQUFBzABhhZodHRwOi8vb2NzcC50aGF3dGUuY29tMBIGA1UdEwEB/wQIMAYB
-# Af8CAQAwPwYDVR0fBDgwNjA0oDKgMIYuaHR0cDovL2NybC50aGF3dGUuY29tL1Ro
-# YXd0ZVRpbWVzdGFtcGluZ0NBLmNybDATBgNVHSUEDDAKBggrBgEFBQcDCDAOBgNV
-# HQ8BAf8EBAMCAQYwKAYDVR0RBCEwH6QdMBsxGTAXBgNVBAMTEFRpbWVTdGFtcC0y
-# MDQ4LTEwDQYJKoZIhvcNAQEFBQADgYEAAwmbj3nvf1kwqu9otfrjCR27T4IGXTdf
-# plKfFo3qHJIJRG71betYfDDo+WmNI3MLEm9Hqa45EfgqsZuwGsOO61mWAK3ODE2y
-# 0DGmCFwqevzieh1XTKhlGOl5QGIllm7HxzdqgyEIjkHq3dlXPx13SYcqFgZepjhq
-# IhKjURmDfrYwggSjMIIDi6ADAgECAhAOz/Q4yP6/NW4E2GqYGxpQMA0GCSqGSIb3
-# DQEBBQUAMF4xCzAJBgNVBAYTAlVTMR0wGwYDVQQKExRTeW1hbnRlYyBDb3Jwb3Jh
-# dGlvbjEwMC4GA1UEAxMnU3ltYW50ZWMgVGltZSBTdGFtcGluZyBTZXJ2aWNlcyBD
-# QSAtIEcyMB4XDTEyMTAxODAwMDAwMFoXDTIwMTIyOTIzNTk1OVowYjELMAkGA1UE
-# BhMCVVMxHTAbBgNVBAoTFFN5bWFudGVjIENvcnBvcmF0aW9uMTQwMgYDVQQDEytT
-# eW1hbnRlYyBUaW1lIFN0YW1waW5nIFNlcnZpY2VzIFNpZ25lciAtIEc0MIIBIjAN
-# BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAomMLOUS4uyOnREm7Dv+h8GEKU5Ow
-# mNutLA9KxW7/hjxTVQ8VzgQ/K/2plpbZvmF5C1vJTIZ25eBDSyKV7sIrQ8Gf2Gi0
-# jkBP7oU4uRHFI/JkWPAVMm9OV6GuiKQC1yoezUvh3WPVF4kyW7BemVqonShQDhfu
-# ltthO0VRHc8SVguSR/yrrvZmPUescHLnkudfzRC5xINklBm9JYDh6NIipdC6Anqh
-# d5NbZcPuF3S8QYYq3AhMjJKMkS2ed0QfaNaodHfbDlsyi1aLM73ZY8hJnTrFxeoz
-# C9Lxoxv0i77Zs1eLO94Ep3oisiSuLsdwxb5OgyYI+wu9qU+ZCOEQKHKqzQIDAQAB
-# o4IBVzCCAVMwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDAO
-# BgNVHQ8BAf8EBAMCB4AwcwYIKwYBBQUHAQEEZzBlMCoGCCsGAQUFBzABhh5odHRw
-# Oi8vdHMtb2NzcC53cy5zeW1hbnRlYy5jb20wNwYIKwYBBQUHMAKGK2h0dHA6Ly90
-# cy1haWEud3Muc3ltYW50ZWMuY29tL3Rzcy1jYS1nMi5jZXIwPAYDVR0fBDUwMzAx
-# oC+gLYYraHR0cDovL3RzLWNybC53cy5zeW1hbnRlYy5jb20vdHNzLWNhLWcyLmNy
-# bDAoBgNVHREEITAfpB0wGzEZMBcGA1UEAxMQVGltZVN0YW1wLTIwNDgtMjAdBgNV
-# HQ4EFgQURsZpow5KFB7VTNpSYxc/Xja8DeYwHwYDVR0jBBgwFoAUX5r1blzMzHSa
-# 1N197z/b7EyALt0wDQYJKoZIhvcNAQEFBQADggEBAHg7tJEqAEzwj2IwN3ijhCcH
-# bxiy3iXcoNSUA6qGTiWfmkADHN3O43nLIWgG2rYytG2/9CwmYzPkSWRtDebDZw73
-# BaQ1bHyJFsbpst+y6d0gxnEPzZV03LZc3r03H0N45ni1zSgEIKOq8UvEiCmRDoDR
-# EfzdXHZuT14ORUZBbg2w6jiasTraCXEQ/Bx5tIB7rGn0/Zy2DBYr8X9bCT2bW+IW
-# yhOBbQAuOA2oKY8s4bL0WqkBrxWcLC9JG9siu8P+eJRRw4axgohd8D20UaF5Mysu
-# e7ncIAkTcetqGVvP6KUwVyyJST+5z3/Jvz4iaGNTmr1pdKzFHTx/kuDDvBzYBHUw
-# ggUnMIIED6ADAgECAhAJT00SLqoJkIvAj67NF8OqMA0GCSqGSIb3DQEBCwUAMHIx
-# CzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3
-# dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lDZXJ0IFNIQTIgQXNzdXJlZCBJ
-# RCBDb2RlIFNpZ25pbmcgQ0EwHhcNMTYwNjA2MDAwMDAwWhcNMTkwNjExMTIwMDAw
-# WjBkMQswCQYDVQQGEwJDSDESMBAGA1UECBMJU29sb3RodXJuMREwDwYDVQQHDAhE
-# w6RuaWtlbjEWMBQGA1UEChMNYmFzZVZJU0lPTiBBRzEWMBQGA1UEAxMNYmFzZVZJ
-# U0lPTiBBRzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJ+YpjWmBGJ6
-# 6p3mACb/iu1w1oUOFAPZVNSZ8nPOY2MNtzi8d2RRSf16+VVSBhy4wv5sg0QAu76I
-# 1B5mwWA73gjDERH4LRvisNLrd5cR/CyS1DLZvHY01g7Ck7MtNSekjPEHIc6LFK/4
-# 5gQ28nAPcanR2wo+RPGxu34QXKg3ceBH92POm1GDGGUMsTjP7ME7ZOeLKLScJD/V
-# rmMH/B6K7ApfAF2O/szxFXrEo+5VcloWoCRHmbFe7nLnAC8k5I63ZBmiSi6EBc89
-# ID+XaVWLYvVCNwI/PVEanmDxBG9SAxRnJtcUAYg62S84ClXNj2y53xPUbdZvz3mC
-# RTivIlhjH9ECAwEAAaOCAcUwggHBMB8GA1UdIwQYMBaAFFrEuXsqCqOl6nEDwGD5
-# LfZldQ5YMB0GA1UdDgQWBBR6hPT/LYCRb+slld/aUoR4eQYCQDAOBgNVHQ8BAf8E
-# BAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwMwdwYDVR0fBHAwbjA1oDOgMYYvaHR0
-# cDovL2NybDMuZGlnaWNlcnQuY29tL3NoYTItYXNzdXJlZC1jcy1nMS5jcmwwNaAz
-# oDGGL2h0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9zaGEyLWFzc3VyZWQtY3MtZzEu
-# Y3JsMEwGA1UdIARFMEMwNwYJYIZIAYb9bAMBMCowKAYIKwYBBQUHAgEWHGh0dHBz
-# Oi8vd3d3LmRpZ2ljZXJ0LmNvbS9DUFMwCAYGZ4EMAQQBMIGEBggrBgEFBQcBAQR4
-# MHYwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBOBggrBgEF
-# BQcwAoZCaHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0U0hBMkFz
-# c3VyZWRJRENvZGVTaWduaW5nQ0EuY3J0MAwGA1UdEwEB/wQCMAAwDQYJKoZIhvcN
-# AQELBQADggEBAI5wXkMjGctA2E/fchGVptw2Qzdp1a3C1ApX4STqxhkKaQMMJao7
-# cHarrQctdjRo2YHEsEsPpOKpQcB2gEUnhWInaghmq618MC/UYZtL/hUcGraEhRO6
-# PEDoM/2Xz1+EJJbgmS812YOih1xXrbzfgKE3Zl01VsoNjPvsD4XtEuD0Utjrwsh/
-# Qy3gD9Wb925oYOuIz9hp1+jmnQu7hlRaVr7TtxR4aTtTqQdAv35FKPqJdXXUZ9Y9
-# otWAWBgWb8YFqMTw6gig3EUORB+MyPXN/zCdwrbAcXlrMIPHhKsvJ6UkxfQkfb4Z
-# oztVtMUBChHanEVcX4bVFQwNnDVcrlt8w6IwggUwMIIEGKADAgECAhAECRgbX9W7
-# ZnVTQ7VvlVAIMA0GCSqGSIb3DQEBCwUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
-# EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
-# BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0xMzEwMjIxMjAwMDBa
-# Fw0yODEwMjIxMjAwMDBaMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2Vy
-# dCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lD
-# ZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EwggEiMA0GCSqGSIb3
-# DQEBAQUAA4IBDwAwggEKAoIBAQD407Mcfw4Rr2d3B9MLMUkZz9D7RZmxOttE9X/l
-# qJ3bMtdx6nadBS63j/qSQ8Cl+YnUNxnXtqrwnIal2CWsDnkoOn7p0WfTxvspJ8fT
-# eyOU5JEjlpB3gvmhhCNmElQzUHSxKCa7JGnCwlLyFGeKiUXULaGj6YgsIJWuHEqH
-# CN8M9eJNYBi+qsSyrnAxZjNxPqxwoqvOf+l8y5Kh5TsxHM/q8grkV7tKtel05iv+
-# bMt+dDk2DZDv5LVOpKnqagqrhPOsZ061xPeM0SAlI+sIZD5SlsHyDxL0xY4PwaLo
-# LFH3c7y9hbFig3NBggfkOItqcyDQD2RzPJ6fpjOp/RnfJZPRAgMBAAGjggHNMIIB
-# yTASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAK
-# BggrBgEFBQcDAzB5BggrBgEFBQcBAQRtMGswJAYIKwYBBQUHMAGGGGh0dHA6Ly9v
-# Y3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3aHR0cDovL2NhY2VydHMuZGln
-# aWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNydDCBgQYDVR0fBHow
-# eDA6oDigNoY0aHR0cDovL2NybDQuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJl
-# ZElEUm9vdENBLmNybDA6oDigNoY0aHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0Rp
-# Z2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDBPBgNVHSAESDBGMDgGCmCGSAGG/WwA
-# AgQwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQUzAK
-# BghghkgBhv1sAzAdBgNVHQ4EFgQUWsS5eyoKo6XqcQPAYPkt9mV1DlgwHwYDVR0j
-# BBgwFoAUReuir/SSy4IxLVGLp6chnfNtyA8wDQYJKoZIhvcNAQELBQADggEBAD7s
-# DVoks/Mi0RXILHwlKXaoHV0cLToaxO8wYdd+C2D9wz0PxK+L/e8q3yBVN7Dh9tGS
-# dQ9RtG6ljlriXiSBThCk7j9xjmMOE0ut119EefM2FAaK95xGTlz/kLEbBw6RFfu6
-# r7VRwo0kriTGxycqoSkoGjpxKAI8LpGjwCUR4pwUR6F6aGivm6dcIFzZcbEMj7uo
-# +MUSaJ/PQMtARKUT8OZkDCUIQjKyNookAv4vcn4c10lFluhZHen6dGRrsutmQ9qz
-# sIzV6Q3d9gEgzpkxYz0IGhizgZtPxpMQBvwHgfqL2vmCSfdibqFT+hKUGIUukpHq
-# aGxEMrJmoecYpJpkUe8xggQ3MIIEMwIBATCBhjByMQswCQYDVQQGEwJVUzEVMBMG
-# A1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMTEw
-# LwYDVQQDEyhEaWdpQ2VydCBTSEEyIEFzc3VyZWQgSUQgQ29kZSBTaWduaW5nIENB
-# AhAJT00SLqoJkIvAj67NF8OqMAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQow
-# CKACgAChAoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcC
-# AQsxDjAMBgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBTm16teRhHI0uPiStZK
-# XawjYKn7ODANBgkqhkiG9w0BAQEFAASCAQBdiQAtN2YsWgTiZ7guxL1Ms/k/VLog
-# E7YNXNiTtWpJqp3eZn/lS0WlOzdW6VsXWRWitbUlq1Ax4j4qM5h7/UI/OGhkzUnE
-# 9XU5dSoFlRxWS1xvxOKXXCnpXQgmGkaXPjoeMLzMc20S685zIq8jNViSQHjMJDtw
-# siIr0AfEgBfc4cdoq0M+cinoO7IiGcTBxlOKeWDDQKXdc5+eyDEBze/Uyopfc1Wz
-# 4M4kbXC0H36iarNNE17K1m8DZaFqRLPsu9ksepPaa58duR+WvqsTW1rTdEZf8zF1
-# Phssfan9S5IFrE18UyxLQMykC3XB7wMfos8oTVJNCD8Ri02P0OWQjhX2oYICCzCC
-# AgcGCSqGSIb3DQEJBjGCAfgwggH0AgEBMHIwXjELMAkGA1UEBhMCVVMxHTAbBgNV
-# BAoTFFN5bWFudGVjIENvcnBvcmF0aW9uMTAwLgYDVQQDEydTeW1hbnRlYyBUaW1l
-# IFN0YW1waW5nIFNlcnZpY2VzIENBIC0gRzICEA7P9DjI/r81bgTYapgbGlAwCQYF
-# Kw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkF
-# MQ8XDTE4MDUyMzE0MTMyNFowIwYJKoZIhvcNAQkEMRYEFD/F/stXzBso4dE1d2QT
-# rMTa+EG3MA0GCSqGSIb3DQEBAQUABIIBADIGeYJU+XKwE/IvTQcolmU16UYrRraZ
-# 7iyzfk3NBoWl0fB+UD4j0IZvK0M9AEjSjqnXd6b+6Q1thr0wSxyXqY309vEqRWdx
-# URUg5gBHjH9nXlMk8l6Yl1pWDoDFHJ+ifVkR3zSs6FjICVNO1WhdQmRVOLqWsX7Z
-# GFQh6vWb34vlU4VbA+7d/P/jNCFNUyZESpK8pYVRvKAZIzcv8msxTPFxJNhFCN48
-# 6xNvzyvf4eMv4a/9tFhu8tavUJ8IfMCIoZI4TbEI8wUDzSmizMMWQXgNGetVPoI7
-# pKKnCh0vCO5tdf/BNBod7fVOe2jXrGyJe3c0mj9BcxBgnMJQs2zkXYc=
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUGkw7Arzx/O9P91jngCfefh8Y
+# bZKgghsdMIIGajCCBVKgAwIBAgIQAwGaAjr/WLFr1tXq5hfwZjANBgkqhkiG9w0B
+# AQUFADBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYD
+# VQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBBc3N1cmVk
+# IElEIENBLTEwHhcNMTQxMDIyMDAwMDAwWhcNMjQxMDIyMDAwMDAwWjBHMQswCQYD
+# VQQGEwJVUzERMA8GA1UEChMIRGlnaUNlcnQxJTAjBgNVBAMTHERpZ2lDZXJ0IFRp
+# bWVzdGFtcCBSZXNwb25kZXIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB
+# AQCjZF38fLPggjXg4PbGKuZJdTvMbuBTqZ8fZFnmfGt/a4ydVfiS457VWmNbAklQ
+# 2YPOb2bu3cuF6V+l+dSHdIhEOxnJ5fWRn8YUOawk6qhLLJGJzF4o9GS2ULf1ErNz
+# lgpno75hn67z/RJ4dQ6mWxT9RSOOhkRVfRiGBYxVh3lIRvfKDo2n3k5f4qi2LVkC
+# YYhhchhoubh87ubnNC8xd4EwH7s2AY3vJ+P3mvBMMWSN4+v6GYeofs/sjAw2W3rB
+# erh4x8kGLkYQyI3oBGDbvHN0+k7Y/qpA8bLOcEaD6dpAoVk62RUJV5lWMJPzyWHM
+# 0AjMa+xiQpGsAsDvpPCJEY93AgMBAAGjggM1MIIDMTAOBgNVHQ8BAf8EBAMCB4Aw
+# DAYDVR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDCCAb8GA1UdIASC
+# AbYwggGyMIIBoQYJYIZIAYb9bAcBMIIBkjAoBggrBgEFBQcCARYcaHR0cHM6Ly93
+# d3cuZGlnaWNlcnQuY29tL0NQUzCCAWQGCCsGAQUFBwICMIIBVh6CAVIAQQBuAHkA
+# IAB1AHMAZQAgAG8AZgAgAHQAaABpAHMAIABDAGUAcgB0AGkAZgBpAGMAYQB0AGUA
+# IABjAG8AbgBzAHQAaQB0AHUAdABlAHMAIABhAGMAYwBlAHAAdABhAG4AYwBlACAA
+# bwBmACAAdABoAGUAIABEAGkAZwBpAEMAZQByAHQAIABDAFAALwBDAFAAUwAgAGEA
+# bgBkACAAdABoAGUAIABSAGUAbAB5AGkAbgBnACAAUABhAHIAdAB5ACAAQQBnAHIA
+# ZQBlAG0AZQBuAHQAIAB3AGgAaQBjAGgAIABsAGkAbQBpAHQAIABsAGkAYQBiAGkA
+# bABpAHQAeQAgAGEAbgBkACAAYQByAGUAIABpAG4AYwBvAHIAcABvAHIAYQB0AGUA
+# ZAAgAGgAZQByAGUAaQBuACAAYgB5ACAAcgBlAGYAZQByAGUAbgBjAGUALjALBglg
+# hkgBhv1sAxUwHwYDVR0jBBgwFoAUFQASKxOYspkH7R7for5XDStnAs0wHQYDVR0O
+# BBYEFGFaTSS2STKdSip5GoNL9B6Jwcp9MH0GA1UdHwR2MHQwOKA2oDSGMmh0dHA6
+# Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJRENBLTEuY3JsMDig
+# NqA0hjJodHRwOi8vY3JsNC5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURD
+# QS0xLmNybDB3BggrBgEFBQcBAQRrMGkwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3Nw
+# LmRpZ2ljZXJ0LmNvbTBBBggrBgEFBQcwAoY1aHR0cDovL2NhY2VydHMuZGlnaWNl
+# cnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEQ0EtMS5jcnQwDQYJKoZIhvcNAQEFBQAD
+# ggEBAJ0lfhszTbImgVybhs4jIA+Ah+WI//+x1GosMe06FxlxF82pG7xaFjkAneNs
+# hORaQPveBgGMN/qbsZ0kfv4gpFetW7easGAm6mlXIV00Lx9xsIOUGQVrNZAQoHuX
+# x/Y/5+IRQaa9YtnwJz04HShvOlIJ8OxwYtNiS7Dgc6aSwNOOMdgv420XEwbu5AO2
+# FKvzj0OncZ0h3RTKFV2SQdr5D4HRmXQNJsQOfxu19aDxxncGKBXp2JPlVRbwuwqr
+# HNtcSCdmyKOLChzlldquxC5ZoGHd2vNtomHpigtt7BIYvfdVVEADkitrwlHCCkiv
+# sNRu4PQUCjob4489yq9qjXvc2EQwggZ9MIIEZaADAgECAgMCx70wDQYJKoZIhvcN
+# AQELBQAwVDEUMBIGA1UEChMLQ0FjZXJ0IEluYy4xHjAcBgNVBAsTFWh0dHA6Ly93
+# d3cuQ0FjZXJ0Lm9yZzEcMBoGA1UEAxMTQ0FjZXJ0IENsYXNzIDMgUm9vdDAeFw0x
+# ODA4MDQxMDU2MzBaFw0yMDA4MDMxMDU2MzBaMD4xGDAWBgNVBAMTD0NocmlzdG9m
+# IFJvdGhlbjEiMCAGCSqGSIb3DQEJARYTY2hyaXN0b2ZAcm90aGVuLmNvbTCCAiIw
+# DQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAOnbQY/kJcdGAbF68gxyPJj47zDk
+# mQqXjOZS3iPfIkvKXEs+F88Y55g26x57ZkbIDPVxf44ZuoCKVz8qfyU6ZFffNaEA
+# dEqpOr2UQ6qkowy0Yu1zIXRtw6rAUeA4yS9akP7QezA9HtcFgciIHJSvM2espm9p
+# n8FfMKBkw5PA2hLFZ4HZVu/6nsSoJWsgWj6+HmN6SbhHfSDriIN2bEkDvywe93zM
+# 0PzJiXzNiDUm0ZPwS7xsRiG0/EZ3O+FY74nHRdwSDtSBRz2l228/wNda8azyliE3
+# on/NluDlQRh+MBAHnHRksTVWowFs/0pki/BlKpFy2FocV3X8W8drhWMYY2YMx/25
+# aD2gvVj1YILgg9YioBaWTMMdW1SDRdsVL0rT12H/4bTR+fjCe/Kwn/FAKn8IEat9
+# t125AhpNCeITdBISuXnyKII0zZKSSKorTfh/wNRGDLvTRD5qssOT0ZrKwX+KA/0A
+# Kw9UwAu6cgPokriEhIGWNypuIW5mVDD8TmoDb/krIuLzTZ7UnxI/gAeReiPYggir
+# m8cfje0s+2+ayeQhMiJV6zn+T915eLI/bSkuYRRevz/+yT3GFszA7rL2ptLJ5VOW
+# dW8hxBYER010eniHP+0nn+IFXSnF8vySIEpAEuzVSlxuWR+DMDox8CgrprBYhjQE
+# 1UbwLVB81NYfliFbAgMBAAGjggFsMIIBaDAMBgNVHRMBAf8EAjAAMFYGCWCGSAGG
+# +EIBDQRJFkdUbyBnZXQgeW91ciBvd24gY2VydGlmaWNhdGUgZm9yIEZSRUUgaGVh
+# ZCBvdmVyIHRvIGh0dHA6Ly93d3cuQ0FjZXJ0Lm9yZzAOBgNVHQ8BAf8EBAMCA6gw
+# YgYDVR0lBFswWQYIKwYBBQUHAwQGCCsGAQUFBwMCBggrBgEFBQcDAwYKKwYBBAGC
+# NwIBFQYKKwYBBAGCNwIBFgYKKwYBBAGCNwoDBAYKKwYBBAGCNwoDAwYJYIZIAYb4
+# QgQBMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcwAYYWaHR0cDovL29jc3AuY2Fj
+# ZXJ0Lm9yZzA4BgNVHR8EMTAvMC2gK6AphidodHRwOi8vY3JsLmNhY2VydC5vcmcv
+# Y2xhc3MzLXJldm9rZS5jcmwwHgYDVR0RBBcwFYETY2hyaXN0b2ZAcm90aGVuLmNv
+# bTANBgkqhkiG9w0BAQsFAAOCAgEAMDgFhF/Qu0ECp0B3AULRE+CNqE7dAVf8Dcyf
+# i6Xr2s4ZkZNfm7qOrCwHQ2YDA7XiMltu6JyxAAQa7dmUi8+sQGcNC7hq0c/B8hQE
+# /fusQtHswZvSQop7/o8UrGqteuuEEIluV+wpBpcFG00xB9dAo9jQVlE8+ilOUNv1
+# ptw4yIlCNfseL88vL9Mn80u+hIJZn+ICJD8h+NbvrRVvXISe2VxCLjK5RxMNW5GO
+# FZHa5xnb0QnKpl3GM53K69wqah9E2Exw0x3UL44T3fZJmDiyp6AuEtvuorhzL3tF
+# uN+Jk8lMGjz5cVegkqf91PBII/t3yYeuvZDFBQbDNz2AoG9tn1bVxd45xm9IdncW
+# 5t+D5zDuuATTBcyz+1ED4/LHolVdmkJsd7Oe1ZTzQFEQ9tQjnXKiNWyf8xZROOgq
+# bfx4C55GM06zos/PjJkHTZYSUt3wXR0IlGCOAD5eBYuIMYhibaaknFzoOClC54fd
+# f6y/YFFao5WJ4cWoW5iR5EFDfKxajDkzoGL+GBlg2j8vsWPNUAnGAl8vvZtYRE9K
+# uCGeCVScEESbLq5YYX8P6F9YyUg4IvmVFM74jlBmi3Q06x/Oc7h5Co6SOQ9NTYRn
+# l6fRih8LnrnESth7jcSOU6PmSCV+B7v8AqXqy2ZgzdMvSjL6QDZnCea0y2uhSSjY
+# bVtxoQwwggbNMIIFtaADAgECAhAG/fkDlgOt6gAK6z8nu7obMA0GCSqGSIb3DQEB
+# BQUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNV
+# BAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNVBAMTG0RpZ2lDZXJ0IEFzc3VyZWQg
+# SUQgUm9vdCBDQTAeFw0wNjExMTAwMDAwMDBaFw0yMTExMTAwMDAwMDBaMGIxCzAJ
+# BgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5k
+# aWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IEFzc3VyZWQgSUQgQ0EtMTCC
+# ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOiCLZn5ysJClaWAc0Bw0p5W
+# VFypxNJBBo/JM/xNRZFcgZ/tLJz4FlnfnrUkFcKYubR3SdyJxArar8tea+2tsHEx
+# 6886QAxGTZPsi3o2CAOrDDT+GEmC/sfHMUiAfB6iD5IOUMnGh+s2P9gww/+m9/ui
+# zW9zI/6sVgWQ8DIhFonGcIj5BZd9o8dD3QLoOz3tsUGj7T++25VIxO4es/K8DCuZ
+# 0MZdEkKB4YNugnM/JksUkK5ZZgrEjb7SzgaurYRvSISbT0C58Uzyr5j79s5AXVz2
+# qPEvr+yJIvJrGGWxwXOt1/HYzx4KdFxCuGh+t9V3CidWfA9ipD8yFGCV/QcEogkC
+# AwEAAaOCA3owggN2MA4GA1UdDwEB/wQEAwIBhjA7BgNVHSUENDAyBggrBgEFBQcD
+# AQYIKwYBBQUHAwIGCCsGAQUFBwMDBggrBgEFBQcDBAYIKwYBBQUHAwgwggHSBgNV
+# HSAEggHJMIIBxTCCAbQGCmCGSAGG/WwAAQQwggGkMDoGCCsGAQUFBwIBFi5odHRw
+# Oi8vd3d3LmRpZ2ljZXJ0LmNvbS9zc2wtY3BzLXJlcG9zaXRvcnkuaHRtMIIBZAYI
+# KwYBBQUHAgIwggFWHoIBUgBBAG4AeQAgAHUAcwBlACAAbwBmACAAdABoAGkAcwAg
+# AEMAZQByAHQAaQBmAGkAYwBhAHQAZQAgAGMAbwBuAHMAdABpAHQAdQB0AGUAcwAg
+# AGEAYwBjAGUAcAB0AGEAbgBjAGUAIABvAGYAIAB0AGgAZQAgAEQAaQBnAGkAQwBl
+# AHIAdAAgAEMAUAAvAEMAUABTACAAYQBuAGQAIAB0AGgAZQAgAFIAZQBsAHkAaQBu
+# AGcAIABQAGEAcgB0AHkAIABBAGcAcgBlAGUAbQBlAG4AdAAgAHcAaABpAGMAaAAg
+# AGwAaQBtAGkAdAAgAGwAaQBhAGIAaQBsAGkAdAB5ACAAYQBuAGQAIABhAHIAZQAg
+# AGkAbgBjAG8AcgBwAG8AcgBhAHQAZQBkACAAaABlAHIAZQBpAG4AIABiAHkAIABy
+# AGUAZgBlAHIAZQBuAGMAZQAuMAsGCWCGSAGG/WwDFTASBgNVHRMBAf8ECDAGAQH/
+# AgEAMHkGCCsGAQUFBwEBBG0wazAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGln
+# aWNlcnQuY29tMEMGCCsGAQUFBzAChjdodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5j
+# b20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3J0MIGBBgNVHR8EejB4MDqgOKA2
+# hjRodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURSb290
+# Q0EuY3JsMDqgOKA2hjRodHRwOi8vY3JsNC5kaWdpY2VydC5jb20vRGlnaUNlcnRB
+# c3N1cmVkSURSb290Q0EuY3JsMB0GA1UdDgQWBBQVABIrE5iymQftHt+ivlcNK2cC
+# zTAfBgNVHSMEGDAWgBRF66Kv9JLLgjEtUYunpyGd823IDzANBgkqhkiG9w0BAQUF
+# AAOCAQEARlA+ybcoJKc4HbZbKa9Sz1LpMUerVlx71Q0LQbPv7HUfdDjyslxhopyV
+# w1Dkgrkj0bo6hnKtOHisdV0XFzRyR4WUVtHruzaEd8wkpfMEGVWp5+Pnq2LN+4st
+# kMLA0rWUvV5PsQXSDj0aqRRbpoYxYqioM+SbOafE9c4deHaUJXPkKqvPnHZL7V/C
+# SxbkS3BMAIke/MV5vEwSV/5f4R68Al2o/vsHOE8Nxl2RuQ9nRc3Wg+3nkg2NsWmM
+# T/tZ4CMP0qquAHzunEIOz5HXJ7cW7g/DvXwKoO4sCFWFIrjrGBpN/CohrUkxg0eV
+# d3HcsRtLSxwQnHcUwZ1PL1qVCCkQJjCCB1kwggVBoAMCAQICAwpBijANBgkqhkiG
+# 9w0BAQsFADB5MRAwDgYDVQQKEwdSb290IENBMR4wHAYDVQQLExVodHRwOi8vd3d3
+# LmNhY2VydC5vcmcxIjAgBgNVBAMTGUNBIENlcnQgU2lnbmluZyBBdXRob3JpdHkx
+# ITAfBgkqhkiG9w0BCQEWEnN1cHBvcnRAY2FjZXJ0Lm9yZzAeFw0xMTA1MjMxNzQ4
+# MDJaFw0yMTA1MjAxNzQ4MDJaMFQxFDASBgNVBAoTC0NBY2VydCBJbmMuMR4wHAYD
+# VQQLExVodHRwOi8vd3d3LkNBY2VydC5vcmcxHDAaBgNVBAMTE0NBY2VydCBDbGFz
+# cyAzIFJvb3QwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCrSTURSHzS
+# Jn5TlM9Dqd0o10Iqi/OHeBlYfA+e2ol94fvrcpANdKGWZKufoCSZc9riVXbHF3v1
+# BKxGuMO+f2SNEGwk82GcwPKQ+lHm9WkBY8MPVuJKQs/iRIwlKKjFeQl9RrmK8+nz
+# NCkIReQcn8uUBByBqBSzmGXEQ+xOgo0J0b2qW42S0OzekMV/CsLj6+YxWl50Ppcz
+# WejDAz1gM7/30W9HxM3uYoNSbi4ImqTZFRiRpoWSR7CuSOtttyHshRpocjWr//AQ
+# XcD0lKdq1TuSfkyQBX6TwSyLpI5idBVxbgtxA+qvFTia1NIFcm+M+SvrWnIl+TlG
+# 43IbPgTDZCciECqKT1inA62+tC4T7V2qSNfVfdQqe1z6RgRQ5MwOQluM7dvyz/yW
+# k+DbETZUYjQ4jwxgmzuXVjit89Jbi6Bb6k6WuHzX1aCGcEDTkSm3ojyt9Yy7zxqS
+# iuQ0e8DYbF/pCsLDpyCaWt8sXVJcukfVm+8kKHA4IC/VfynAskEDaJLM4JzMl0tF
+# 7zoQCqtwOpiVcK01seqFK6QcgCExqa5geoAmSAC4AcCTY1UikTxW56/bOiXzjzFU
+# 6iaLgVn5odFTEcV7nQP2dBHgbbEsPyyGkZlxmqZ3izRg0RS0LKydr4wQ05/Eavhv
+# E/xzWfdmQnQeiuP43NJvmJzLR5iVQAX76QIDAQABo4ICDTCCAgkwHQYDVR0OBBYE
+# FHWocWBMiBPweNmJd7VtxYnfvLF6MIGjBgNVHSMEgZswgZiAFBa1MhvUx/Pg5o7z
+# vdKwOu6yORjRoX2kezB5MRAwDgYDVQQKEwdSb290IENBMR4wHAYDVQQLExVodHRw
+# Oi8vd3d3LmNhY2VydC5vcmcxIjAgBgNVBAMTGUNBIENlcnQgU2lnbmluZyBBdXRo
+# b3JpdHkxITAfBgkqhkiG9w0BCQEWEnN1cHBvcnRAY2FjZXJ0Lm9yZ4IBADAPBgNV
+# HRMBAf8EBTADAQH/MF0GCCsGAQUFBwEBBFEwTzAjBggrBgEFBQcwAYYXaHR0cDov
+# L29jc3AuQ0FjZXJ0Lm9yZy8wKAYIKwYBBQUHMAKGHGh0dHA6Ly93d3cuQ0FjZXJ0
+# Lm9yZy9jYS5jcnQwSgYDVR0gBEMwQTA/BggrBgEEAYGQSjAzMDEGCCsGAQUFBwIB
+# FiVodHRwOi8vd3d3LkNBY2VydC5vcmcvaW5kZXgucGhwP2lkPTEwMDQGCWCGSAGG
+# +EIBCAQnFiVodHRwOi8vd3d3LkNBY2VydC5vcmcvaW5kZXgucGhwP2lkPTEwMFAG
+# CWCGSAGG+EIBDQRDFkFUbyBnZXQgeW91ciBvd24gY2VydGlmaWNhdGUgZm9yIEZS
+# RUUsIGdvIHRvIGh0dHA6Ly93d3cuQ0FjZXJ0Lm9yZzANBgkqhkiG9w0BAQsFAAOC
+# AgEAKSiFrkSpua+keRPwqKMrl2DzXO7jL8H24magEa42Nzp2FQRT6kL1+erAFdim
+# gtnkYa5yCylckEPoQbLhd9sCE0R4R1WvWPzMmPZFudEg+NghB/5tqnPUs8YH6QmF
+# zDvytr4sHCXVcYw5tS7qvhiBurCTuA/j5tcmjDFacgOEUuam9TMiRQrICw2KuDZv
+# kAmhq73X1U4ucaLUrvqnVCvrNY1at1SIL+50n+1IFsoNSNCU06ykovYk35LjvetD
+# QJFuHBiOVrSCEvOpk5/UvJytnHXuWpcbled0LRwPsCyXn/upMzl65wM6ko4i9owN
+# 5Nl+DXYY9wH575aWolVzwDxxtB0aVkO3wwqNcvziEAkLQc6MlKD5A/1xc0uKVzPl
+# jnR+FQEA5sxKHOd/lRktxaUMi7u17YWzXNPfuLnyyscNARSscFjFjI0z1J1moxpQ
+# lSP8SOAGQxLZzaeGOS82cqOAEOTh89HLWxrA5ICafBNzBk/bo2skCrqzHLxKeLvl
+# 43U4pUinoh6vdtRe9ziGVlqJztbDp3myUqDG8YW0JYzyP5azENmNbFc7n2+GOhiC
+# IjbIsJE42yqhk6qEP/UnZa5z1cjV03fqS53HQbvHwOOgP+R9pI1z5hJL36Fzc3M6
+# gOjVy44vy+oTp9ZBi6z6PInXJPVOtOBhkrfzN5jEvpajt4oxggUPMIIFCwIBATBb
+# MFQxFDASBgNVBAoTC0NBY2VydCBJbmMuMR4wHAYDVQQLExVodHRwOi8vd3d3LkNB
+# Y2VydC5vcmcxHDAaBgNVBAMTE0NBY2VydCBDbGFzcyAzIFJvb3QCAwLHvTAJBgUr
+# DgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMx
+# DAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFjAjBgkq
+# hkiG9w0BCQQxFgQUY4qvGXYdsNc2qUQACJhSYEjgoQMwDQYJKoZIhvcNAQEBBQAE
+# ggIA00H+AY/LjB4GzJc+qaomH//K8Ot4oIgLJ2/zkSjNqGRePlxdAJt4ljwhjsxO
+# PR3DIsxp//GWBp5LIsSmm2sDe0buyBICmUu+XPA6nqTeEJ1kqM4d02eyZI8H3yww
+# RFWXUiJ4AaJxtjhoAQr+OtuptNqb8rWMVWa46iqeelsU8NKRPAQrqCKUcb1MufY+
+# QjuBQvsbuqE35RKHbppiTBU3eORBaEJWkFCHaeLsaPn4+YZnNEtiPKO3BZyLIMMz
+# ncHp8szz5XilzlORraZGwmkC69zWEmnUrjCC85dMwe4ShPWdfxtkJ+7ymbhBVLDN
+# 2mehbG909KTwn0MXfYVhnyrdkghn0Mf7XBN+qs6tEW/PEAmx58XAvFoH+/OacgIN
+# VFmdR9zssC4HmeuBjReXg5IFsUWRzdol2cuFjVXb0muGdp/XErXK1NE0dHlyVBtD
+# cbWTOZO/RRBBB/MwE99r3ATRBNxiGMRHeEZD5cPBY4hIYH9kZ+JPUMGiChZ60v8P
+# XSeSoRd/C1tbW+/VMiUK9xoK96ogT+nlZrWbMJZfqxBeYloAY3zsjnlVcC0Rr843
+# POLiq9PNggR5Um9hQe0MytK4harizPpAuK1B7VDnnttVps7HkYjBW0bn2USad/E8
+# 7ttkbOYJ5nhn2IatT5IjaXVzE7wDRCxehhGuf+WGK5jB1+qhggIPMIICCwYJKoZI
+# hvcNAQkGMYIB/DCCAfgCAQEwdjBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGln
+# aUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhE
+# aWdpQ2VydCBBc3N1cmVkIElEIENBLTECEAMBmgI6/1ixa9bV6uYX8GYwCQYFKw4D
+# AhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8X
+# DTE4MDkwOTE4MjQ1MFowIwYJKoZIhvcNAQkEMRYEFIfIS8SKBPlwGotVwee2HSck
+# VQFoMA0GCSqGSIb3DQEBAQUABIIBAJgCNf5pt0AKH3BY8HJ5ONdgBPj3jMVJU/22
+# K9ip33GjQc8QytpWAy40Vnb4p08R428IBDUWd8qxOfVQsM9zM9dwSI7ZKxD2oQxT
+# WXLLc6fdxlO7Awqaxh6yZrcKWq25yg68VGsVgjTqh/nruJ3AW9sZBjq1SsEEQT3h
+# 2kpAwzQQSYA1INr47v/uyojN5Ks7yyr1aHJUsIL/1v0DTA0NlCcnvw3eYVtq9rGq
+# NmQGaAlyv5+By2hyWaTJbl8JhSwgShLVXuhWprXw+3DZjCcV82YuH9a8zcFIpaD3
+# MnW0M2qkSFd4OvyoVRQzoOsPoLXD0+7J8BmPXhLZs+UvtSXFIw8=
 # SIG # End signature block
