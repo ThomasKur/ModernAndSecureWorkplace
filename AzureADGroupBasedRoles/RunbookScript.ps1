@@ -5,7 +5,7 @@ $connectionName = "AzureRunAsConnection"
 # Exclude specific Roles from Assignment
 $ExcludeRoles = @("User","Guest User")
 # Exclude specific Roles from Assignment for example exclude your emergency account, so that it will never be removed through this script.
-$ExcludeUsers = @("admin@kurcontoso.onmicrosoft.com")
+$ExcludeUsers = @("admin@aaaaaaa.onmicrosoft.com")
 # Get the Service Principal connection details for the Connection name
 $servicePrincipalConnection = Get-AutomationConnection -Name $connectionName         
 
@@ -15,17 +15,6 @@ Connect-AzureAD -TenantId $servicePrincipalConnection.TenantId `
     -ApplicationId $servicePrincipalConnection.ApplicationId `
     -CertificateThumbprint $servicePrincipalConnection.CertificateThumbprint
 
-
-# Generate Groups if new Roles are available
-$Roles = Get-AzureADDirectoryRoleTemplate | Where-Object { $ExcludeRoles -notcontains $_.DisplayName -and $_.Description -notlike "*do not use*" }
-foreach($Role in $Roles){
-    $GroupName = "$GroupPrefix$($Role.DisplayName -replace " ", "`")"
-    $CheckGrup = Get-AzureADGroup -Filter "DisplayName eq '$GroupName'" -ErrorAction SilentlyContinue
-    if($null -eq $CheckGrup){
-        Enable-AzureADDirectoryRole -RoleTemplateId $Role.ObjectId
-        new-azureadgroup -DisplayName $GroupName -SecurityEnabled $true -MailEnabled:$false -MailNickName $GroupName -Description $ROle.Description
-    } 
-}
 
 # Generate Groups if new Roles are available
 $Roles = Get-AzureADDirectoryRole | Where-Object { $ExcludeRoles -notcontains $_.DisplayName }
@@ -59,3 +48,13 @@ foreach($Role in $Roles){
 }
 
 
+# Generate Groups if new Roles are available
+$Roles = Get-AzureADDirectoryRoleTemplate | Where-Object { $ExcludeRoles -notcontains $_.DisplayName -and $_.Description -notlike "*do not use*" }
+foreach($Role in $Roles){
+    $GroupName = "$GroupPrefix$($Role.DisplayName -replace " ", "`")"
+    $CheckGrup = Get-AzureADGroup -Filter "DisplayName eq '$GroupName'" -ErrorAction SilentlyContinue
+    if($null -eq $CheckGrup){
+        Enable-AzureADDirectoryRole -RoleTemplateId $Role.ObjectId
+        new-azureadgroup -DisplayName $GroupName -SecurityEnabled $true -MailEnabled:$false -MailNickName $GroupName -Description $ROle.Description
+    } 
+}
