@@ -1,5 +1,5 @@
 # Enter your Run as account Service Principal ID
-$SPId = "7d82176f-5690-473f-9402-964a349afd1d"
+$SPId = "EnterYourServicePrincipalId"
 
 # Connect to Azure AD
 Connect-AzureAD 
