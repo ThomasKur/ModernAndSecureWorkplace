@@ -1,0 +1,145 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "deviceName": {
+      "type": "string"
+    },
+    "managedDeviceOwnerType": {
+      "type": "string"
+    },
+    "enrolledDateTime": {
+      "type": "string"
+    },
+    "lastSyncDateTime": {
+      "type": "string"
+    },
+    "operatingSystem": {
+      "type": "string"
+    },
+    "complianceState": {
+      "type": "string"
+    },
+    "jailBroken": {
+      "type": "string"
+    },
+    "managementAgent": {
+      "type": "string"
+    },
+    "osVersion": {
+      "type": "string"
+    },
+    "easActivated": {
+      "type": "boolean"
+    },
+    "easDeviceId": {
+      "type": "string"
+    },
+    "easActivationDateTime": {
+      "type": "string"
+    },
+    "azureADRegistered": {
+      "type": "boolean"
+    },
+    "deviceEnrollmentType": {
+      "type": "string"
+    },
+    "activationLockBypassCode": {},
+    "emailAddress": {
+      "type": "string"
+    },
+    "azureADDeviceId": {
+      "type": "string"
+    },
+    "deviceRegistrationState": {
+      "type": "string"
+    },
+    "deviceCategoryDisplayName": {
+      "type": "string"
+    },
+    "isSupervised": {
+      "type": "boolean"
+    },
+    "exchangeLastSuccessfulSyncDateTime": {
+      "type": "string"
+    },
+    "exchangeAccessState": {
+      "type": "string"
+    },
+    "exchangeAccessStateReason": {
+      "type": "string"
+    },
+    "remoteAssistanceSessionUrl": {},
+    "remoteAssistanceSessionErrorDetails": {},
+    "isEncrypted": {
+      "type": "boolean"
+    },
+    "userPrincipalName": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "manufacturer": {
+      "type": "string"
+    },
+    "imei": {
+      "type": "string"
+    },
+    "complianceGracePeriodExpirationDateTime": {
+      "type": "string"
+    },
+    "serialNumber": {
+      "type": "string"
+    },
+    "phoneNumber": {
+      "type": "string"
+    },
+    "androidSecurityPatchLevel": {
+      "type": "string"
+    },
+    "userDisplayName": {
+      "type": "string"
+    },
+    "configurationManagerClientEnabledFeatures": {},
+    "wiFiMacAddress": {
+      "type": "string"
+    },
+    "deviceHealthAttestationState": {},
+    "subscriberCarrier": {
+      "type": "string"
+    },
+    "meid": {
+      "type": "string"
+    },
+    "totalStorageSpaceInBytes": {
+      "type": "integer"
+    },
+    "freeStorageSpaceInBytes": {
+      "type": "integer"
+    },
+    "managedDeviceName": {
+      "type": "string"
+    },
+    "partnerReportedThreatState": {
+      "type": "string"
+    },
+    "deviceActionResults": {
+      "type": "array"
+    },
+    "managedDeviceId": {
+      "type": "string"
+    },
+    "managedDeviceODataType": {
+      "type": "string"
+    },
+    "managedDeviceReferenceUrl": {
+      "type": "string"
+    }
+  }
+}
