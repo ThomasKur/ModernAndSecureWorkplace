@@ -1,6 +1,6 @@
 
 # Modern & Secure Workplace
-All about automating the Modern and Secure Workplace based on Windows 10, Intune, Syntaro and Azure.
+All about automating the Modern and Secure Workplace based on Windows 10, ConfigMgr, Intune and Azure.
 
 # Thanks to
 @baseVISION Team
