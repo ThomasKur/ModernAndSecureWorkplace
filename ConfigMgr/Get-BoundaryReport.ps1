@@ -366,5 +366,6 @@ Process {
         $HTMLReport = $HTMLTemplate | ForEach-Object {$_.replace('TABLECONTENT',$HTMLTable) }
         $HTMLReport | Set-Content $Path
     }
-} End {
+}
+End {
 }
