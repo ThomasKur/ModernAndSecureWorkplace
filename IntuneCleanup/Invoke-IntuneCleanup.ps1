@@ -16,10 +16,11 @@
     This command automatically removes duplicated objects based on the serial number. 
 
 .NOTES
-    Version:          1.0.0
+    Version:          1.0.1
     Author:           Thomas Kurth
-    Creation Date:    14.9.2019 
+    Creation Date:    27.3.2020 
     Purpose/Change:   Initial script development
+                      Use Get-MSGraphAllPages to work in bigger environments correctly.
 
 .LINK
     https://www.wpninjas.ch/2019/09/cleanup-duplicated-devices-in-intune/
@@ -38,7 +39,7 @@ function Invoke-IntuneCleanup {
         }
     }
     Process {
-        $devices = Get-IntuneManagedDevice
+        $devices = Get-IntuneManagedDevice | Get-MSGraphAllPages
         Write-Verbose "Found $($devices.Count) devices."
         $deviceGroups = $devices | Where-Object { -not [String]::IsNullOrWhiteSpace($_.serialNumber) } | Group-Object -Property serialNumber
         $duplicatedDevices = $deviceGroups | Where-Object {$_.Count -gt 1 }
