@@ -36,6 +36,9 @@ function Get-DsRegStatus {
                Add-Member -InputObject $so -MemberType NoteProperty -Name (([String]$line).Trim() -split " : ")[0] -Value (([String]$line).Trim() -split " : ")[1] -ErrorAction SilentlyContinue
           }
     }
+    if(-not [String]::IsNullOrWhiteSpace($currentSection) -and $null -ne $so){
+        Add-Member -InputObject $o -MemberType NoteProperty -Name $currentSection -Value $so -ErrorAction SilentlyContinue
+    }
     return $o
 }
 
