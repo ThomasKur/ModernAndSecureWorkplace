@@ -32,7 +32,7 @@ function Get-DsRegStatus {
                }
                $currentSection = $line.Replace("|","").Replace(" ","").Trim()
                $so = New-Object -TypeName PSObject
-          } elseif($line -match " *[A-z]+ : [A-z]+ *"){
+          } elseif($line -match " *[A-z]+ : [A-z0-9\{\}]+ *"){
                Add-Member -InputObject $so -MemberType NoteProperty -Name (([String]$line).Trim() -split " : ")[0] -Value (([String]$line).Trim() -split " : ")[1] -ErrorAction SilentlyContinue
           }
     }
