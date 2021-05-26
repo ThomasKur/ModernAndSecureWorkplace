@@ -1,0 +1,304 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "For_each": {
+                "actions": {
+                    "Condition": {
+                        "actions": {},
+                        "else": {
+                            "actions": {
+                                "For_each_2": {
+                                    "actions": {
+                                        "Condition_2": {
+                                            "actions": {
+                                                "Update_user": {
+                                                    "inputs": {
+                                                        "body": {
+                                                            "accountEnabled": false
+                                                        },
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['azuread']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "patch",
+                                                        "path": "/v1.0/users/@{encodeURIComponent(body('Parse_Single_Guest')?['id'])}"
+                                                    },
+                                                    "runAfter": {},
+                                                    "type": "ApiConnection"
+                                                }
+                                            },
+                                            "expression": {
+                                                "and": [
+                                                    {
+                                                        "equals": [
+                                                            "@body('Send_approval_email')?['SelectedOption']",
+                                                            "BlockAccess"
+                                                        ]
+                                                    }
+                                                ]
+                                            },
+                                            "runAfter": {
+                                                "Send_approval_email": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "If"
+                                        },
+                                        "Send_approval_email": {
+                                            "inputs": {
+                                                "body": {
+                                                    "Message": {
+                                                        "Body": "This guest was invited by you to our infrastructure. Does this user still require access or not?",
+                                                        "HideHTMLMessage": false,
+                                                        "Importance": "Normal",
+                                                        "Options": "Approve, BlockAccess",
+                                                        "Subject": "Approve @{items('For_each')?['userPrincipalName']} as Guest",
+                                                        "To": "@items('For_each_2')?['invitorUPN']"
+                                                    },
+                                                    "NotificationUrl": "@{listCallbackUrl()}"
+                                                },
+                                                "host": {
+                                                    "connection": {
+                                                        "name": "@parameters('$connections')['office365']['connectionId']"
+                                                    }
+                                                },
+                                                "path": "/approvalmail/$subscriptions"
+                                            },
+                                            "runAfter": {},
+                                            "type": "ApiConnectionWebhook"
+                                        }
+                                    },
+                                    "foreach": "@body('Parse_Single_Guest')?['extensions']",
+                                    "runAfter": {},
+                                    "type": "Foreach"
+                                }
+                            }
+                        },
+                        "expression": {
+                            "and": [
+                                {
+                                    "equals": [
+                                        "@body('Parse_Single_Guest')?['extensions']",
+                                        "@null"
+                                    ]
+                                }
+                            ]
+                        },
+                        "runAfter": {
+                            "Parse_Single_Guest": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "If"
+                    },
+                    "Parse_Single_Guest": {
+                        "inputs": {
+                            "content": "@items('For_each')",
+                            "schema": {
+                                "properties": {
+                                    "extensions": {
+                                        "items": {
+                                            "properties": {
+                                                "@@odata.type": {
+                                                    "type": "string"
+                                                },
+                                                "LastAccessReview": {
+                                                    "type": "string"
+                                                },
+                                                "LastAccessReview@odata.type": {
+                                                    "type": "string"
+                                                },
+                                                "extensionName": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "invitorId": {
+                                                    "type": "string"
+                                                },
+                                                "invitorUPN": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "@@odata.type",
+                                                "LastAccessReview@odata.type",
+                                                "LastAccessReview",
+                                                "extensionName",
+                                                "invitorId",
+                                                "invitorUPN",
+                                                "id"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "extensions@odata.context": {
+                                        "type": "string"
+                                    },
+                                    "id": {
+                                        "type": "string"
+                                    },
+                                    "userPrincipalName": {
+                                        "type": "string"
+                                    },
+                                    "userType": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "runAfter": {},
+                        "type": "ParseJson"
+                    }
+                },
+                "foreach": "@body('Parse_Result')?['value']",
+                "runAfter": {
+                    "Parse_Result": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "HTTP": {
+                "inputs": {
+                    "authentication": {
+                        "audience": "https://graph.microsoft.com",
+                        "clientId": "871eeb86-5a73-4b5a-b01d-12fe54b68ed9",
+                        "secret": "h-NBDOwn11P-_J~TgMl1jd4ppzk~305X6a",
+                        "tenant": "972e7678-7df2-4d6b-b297-e62aaa6971f0",
+                        "type": "ActiveDirectoryOAuth"
+                    },
+                    "method": "GET",
+                    "queries": {
+                        "$expand": "extensions",
+                        "$filter": "userType eq 'Guest'",
+                        "$select": "id,userPrincipalName,userType"
+                    },
+                    "uri": "https://graph.microsoft.com/v1.0/users"
+                },
+                "runAfter": {},
+                "type": "Http"
+            },
+            "Parse_Result": {
+                "inputs": {
+                    "content": "@body('HTTP')",
+                    "schema": {
+                        "properties": {
+                            "@@odata.context": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "items": {
+                                    "properties": {
+                                        "extensions": {
+                                            "items": {
+                                                "properties": {
+                                                    "@@odata.type": {
+                                                        "type": "string"
+                                                    },
+                                                    "LastAccessReview": {
+                                                        "type": "string"
+                                                    },
+                                                    "LastAccessReview@odata.type": {
+                                                        "type": "string"
+                                                    },
+                                                    "extensionName": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "invitorId": {
+                                                        "type": "string"
+                                                    },
+                                                    "invitorUPN": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "@@odata.type",
+                                                    "LastAccessReview@odata.type",
+                                                    "LastAccessReview",
+                                                    "extensionName",
+                                                    "invitorId",
+                                                    "invitorUPN",
+                                                    "id"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "extensions@odata.context": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "userPrincipalName": {
+                                            "type": "string"
+                                        },
+                                        "userType": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "userPrincipalName",
+                                        "userType"
+                                    ],
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "HTTP": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ParseJson"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "Recurrence": {
+                "recurrence": {
+                    "frequency": "Month",
+                    "interval": 3
+                },
+                "type": "Recurrence"
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "value": {
+                "azuread": {
+                    "connectionId": "/subscriptions/8aaae4cc-ebea-4018-8601-ea211c548683/resourceGroups/weu-prd-rg-sentinel-01/providers/Microsoft.Web/connections/azuread",
+                    "connectionName": "azuread",
+                    "id": "/subscriptions/8aaae4cc-ebea-4018-8601-ea211c548683/providers/Microsoft.Web/locations/westeurope/managedApis/azuread"
+                },
+                "office365": {
+                    "connectionId": "/subscriptions/8aaae4cc-ebea-4018-8601-ea211c548683/resourceGroups/weu-prd-rg-sentinel-01/providers/Microsoft.Web/connections/office365-1",
+                    "connectionName": "office365-1",
+                    "id": "/subscriptions/8aaae4cc-ebea-4018-8601-ea211c548683/providers/Microsoft.Web/locations/westeurope/managedApis/office365"
+                }
+            }
+        }
+    }
+}
