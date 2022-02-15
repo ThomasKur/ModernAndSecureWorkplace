@@ -30,7 +30,7 @@ Start-Transcript -Path $(Join-Path $env:temp "FileCopyMapping.log")
 $appdata = [Environment]::GetFolderPath("ApplicationData")
 
 $FileCopys = @()
-$FileCopys += [pscustomobject]@{Source="filesystem::\\sigvaris-group.com\NETLOGON\SAP\740\";Destination="$appdata\SAP\Common\";ADGroup=""}
+$FileCopys += [pscustomobject]@{Source="filesystem::\\kurcontoso.ch\NETLOGON\SAP\740\";Destination="$appdata\SAP\Common\";ADGroup=""}
 
 
 # Override with your Active Directory Domain Name e.g. 'ds.wpninjas.ch' if you haven't configured the domain name as DHCP option
