@@ -111,7 +111,7 @@ try {
 		$groupMemberships = Get-ADGroupMembership -UserPrincipalName $(whoami -upn)
 	} else {
 		# No remediation required as executed as System
-		exit 0
+		
 	}
 }
 catch {
@@ -142,12 +142,13 @@ if (-not (Test-RunningAsSystem)) {
             } 
         }
     } 
-    
+    Write-Output "Found the following printers to map:"
+	Write-Output $PrintersForUser
     
 	Foreach ($Printer in $PrintersForUser){
 		Try {
 			Write-Output "Get the status of the printer '$($Printer.PrintServer)' on the print server"
-			$PrinterServerStatus = (Get-Printer -ComputerName ([URI]($Printer.PrintServer).host) -Name $Printer.PrinterName).PrinterStatus
+			$PrinterServerStatus = (Get-Printer -ComputerName (([URI]($Printer.PrintServer)).host) -Name $Printer.PrinterName).PrinterStatus
 			# Only perform check if the printer on the print server is not offline
 			If ($PrinterServerStatus -ne "Offline") {
 				# Throw error is printer doesn't exist
@@ -159,9 +160,11 @@ if (-not (Test-RunningAsSystem)) {
 						Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
 					}
 				}
+			} else {
+				Write-Output "Printer is offline or Sppoler not running"
+				$Printer
 			}
-			}
-		Catch {
+		} Catch {
 			Write-Output "Failed to map the printer"
 			$Printer
 			$_
