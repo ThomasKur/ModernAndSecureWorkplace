@@ -7,5 +7,4 @@ Advanced Active Setup solution, because the built in Windows built-in Active Set
 @juergkoller,
 @Syntaro_Portal
 
-![Published on Syntaro](https://www.syntaro.com/wp-content/uploads/2017/06/Syntaro_Claim_pos_rgb.png)
 ![Created by baseVISION](https://www.basevision.ch/wp-content/uploads/2015/12/baseVISION-Logo_RGB.png)
