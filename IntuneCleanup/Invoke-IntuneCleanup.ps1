@@ -41,7 +41,7 @@ function Invoke-IntuneCleanup {
     Process {
         $devices = Get-IntuneManagedDevice | Get-MSGraphAllPages
         Write-Verbose "Found $($devices.Count) devices."
-        $deviceGroups = $devices | Where-Object { -not [String]::IsNullOrWhiteSpace($_.serialNumber) } | Group-Object -Property serialNumber
+        $deviceGroups = $devices | Where-Object { -not [String]::IsNullOrWhiteSpace($_.serialNumber) -and ($_.serialNumber -ne "Defaultstring") } | Group-Object -Property serialNumber
         $duplicatedDevices = $deviceGroups | Where-Object {$_.Count -gt 1 }
         Write-Verbose "Found $($duplicatedDevices.Count) serialNumbers with duplicated entries"
         foreach($duplicatedDevice in $duplicatedDevices){
