@@ -33,28 +33,32 @@ function Invoke-IntuneCleanup {
     Begin {
         Write-Verbose "Checking Intune Connection"
         try{
-            $null = Connect-MSGraph
+            $null = Connect-MgGraph
         }catch{
-            Throw "Not authenticated.  Please use the `"Connect-MSGraph`" command to authenticate."
+            Throw "Not authenticated.  Please use the `"Connect-MgGraph`" command to authenticate."
         }
     }
     Process {
-        $devices = Get-IntuneManagedDevice | Get-MSGraphAllPages
+        $devices = Get-MgDeviceManagementManagedDevice -All
         Write-Verbose "Found $($devices.Count) devices."
-        $deviceGroups = $devices | Where-Object { -not [String]::IsNullOrWhiteSpace($_.serialNumber) -and ($_.serialNumber -ne "Defaultstring") } | Group-Object -Property serialNumber
+
+        $deviceGroups = $devices | Where-Object { -not [String]::IsNullOrWhiteSpace($_.SerialNumber) -and ($_.SerialNumber -ne "Defaultstring") } | Group-Object -Property SerialNumber
         $duplicatedDevices = $deviceGroups | Where-Object {$_.Count -gt 1 }
         Write-Verbose "Found $($duplicatedDevices.Count) serialNumbers with duplicated entries"
+
         foreach($duplicatedDevice in $duplicatedDevices){
             # Find device which is the newest.
-            $newestDevice = $duplicatedDevice.Group | Sort-Object -Property lastSyncDateTime -Descending | Select-Object -First 1
+            $newestDevice = $duplicatedDevice.Group | Sort-Object -Property LastSyncDateTime -Descending | Select-Object -First 1
             Write-Verbose "Serial $($duplicatedDevice.Name)"
-            Write-Verbose "# Keep $($newestDevice.deviceName) $($newestDevice.lastSyncDateTime)"
-            foreach($oldDevice in ($duplicatedDevice.Group | Sort-Object -Property lastSyncDateTime -Descending | Select-Object -Skip 1)){
-                Write-Verbose "# Remove $($oldDevice.deviceName) $($oldDevice.lastSyncDateTime)"
+            Write-Verbose "# Keep $($newestDevice.DeviceName) $($newestDevice.LastSyncDateTime)"
+            
+            foreach($oldDevice in ($duplicatedDevice.Group | Sort-Object -Property LastSyncDateTime -Descending | Select-Object -Skip 1)){
+                Write-Verbose "# Remove $($oldDevice.DeviceName) $($oldDevice.LastSyncDateTime)"
+                
                 if($WhatIfPreference){
                     $oldDevice
                 } else {
-                    Remove-DeviceManagement_ManagedDevices -managedDeviceId $oldDevice.id
+                    Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $oldDevice.Id
                 }
             }
         }
