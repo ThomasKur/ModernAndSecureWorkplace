@@ -16,11 +16,12 @@
     This command automatically removes duplicated objects based on the serial number. 
 
 .NOTES
-    Version:          1.0.1
+    Version:          1.0.2
     Author:           Thomas Kurth
     Creation Date:    27.3.2020 
     Purpose/Change:   Initial script development
                       Use Get-MSGraphAllPages to work in bigger environments correctly.
+                      22.03.2025 - Update to new MG Cmdlets
 
 .LINK
     https://www.wpninjas.ch/2019/09/cleanup-duplicated-devices-in-intune/
